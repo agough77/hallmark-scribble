@@ -319,15 +319,82 @@ class UpdaterGUI:
                 return
             
             # Download update from GitHub
-            self.update_status("Downloading update from GitHub...", 30)
+            download_url = version_info.get('download_url')
+            if not download_url:
+                messagebox.showinfo("Update Available",
+                                  f"Version {latest_version} is available!\n\n"
+                                  f"Please download the latest installer from GitHub:\n"
+                                  f"{GITHUB_REPO_URL}\n\n"
+                                  f"Run the installer as administrator to update.")
+                self.update_status("Manual update required", 100)
+                return
             
-            # For now, show message that manual download is needed
-            messagebox.showinfo("Update Available",
-                              f"Version {latest_version} is available!\n\n"
-                              f"Please download the latest installer from GitHub:\n"
-                              f"{GITHUB_REPO_URL}\n\n"
-                              f"Run the installer as administrator to update.")
-            self.update_status("Manual update required", 100)
+            self.update_status("Downloading installer from GitHub...", 40)
+            self.log(f"Downloading from: {download_url}")
+            
+            # Download to temp directory
+            import tempfile
+            temp_dir = Path(tempfile.gettempdir())
+            installer_filename = f"HallmarkScribble_Installer_{latest_version}.exe"
+            installer_path = temp_dir / installer_filename
+            
+            try:
+                # Download the installer
+                def download_progress(block_num, block_size, total_size):
+                    if total_size > 0:
+                        downloaded = block_num * block_size
+                        percent = min(100, 40 + (downloaded / total_size) * 50)
+                        mb_downloaded = downloaded / (1024 * 1024)
+                        mb_total = total_size / (1024 * 1024)
+                        self.update_status(
+                            f"Downloading: {mb_downloaded:.1f} MB / {mb_total:.1f} MB ({percent-40:.0f}%)", 
+                            percent
+                        )
+                
+                request = urllib.request.Request(download_url)
+                request.add_header('User-Agent', 'HallmarkScribble/1.0')
+                urllib.request.urlretrieve(download_url, installer_path, reporthook=download_progress)
+                
+                self.log(f"Downloaded to: {installer_path}")
+                self.update_status("Download complete! Launching installer...", 90)
+                
+                # Launch installer with admin privileges
+                self.log("Launching installer...")
+                import ctypes
+                
+                # Show message before launching
+                messagebox.showinfo("Installing Update",
+                                  f"The installer will now launch.\n\n"
+                                  f"Please allow administrator access when prompted.\n"
+                                  f"The updater will close and the installer will take over.")
+                
+                # Launch installer as admin
+                ret = ctypes.windll.shell32.ShellExecuteW(
+                    None, 
+                    "runas",  # Run as administrator
+                    str(installer_path), 
+                    None, 
+                    None, 
+                    1  # SW_SHOWNORMAL
+                )
+                
+                if ret > 32:  # Success
+                    self.log("Installer launched successfully")
+                    self.update_status("Installer launched - closing updater", 100)
+                    self.root.after(2000, self.root.quit)  # Close after 2 seconds
+                else:
+                    self.log(f"Failed to launch installer (error code: {ret})")
+                    messagebox.showerror("Launch Failed",
+                                       f"Could not launch installer.\n\n"
+                                       f"Please run manually from:\n{installer_path}")
+                
+            except Exception as download_error:
+                self.log(f"Download failed: {download_error}")
+                messagebox.showerror("Download Failed",
+                                   f"Could not download installer.\n\n"
+                                   f"Error: {download_error}\n\n"
+                                   f"Please download manually from:\n{GITHUB_REPO_URL}")
+                self.update_status("Download failed", 0)
             return
             
         except Exception as e:
