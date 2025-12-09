@@ -1,8 +1,9 @@
 {
-  "version": "1.0.3",
+  "version": "1.0.4",
   "release_date": "2025-12-09",
-  "download_url": "https://github.com/agough77/hallmark-scribble/releases/download/v1.0.3/HallmarkScribble_Installer.exe",
+  "download_url": "https://github.com/agough77/hallmark-scribble/releases/download/v1.0.4/HallmarkScribble_Installer.exe",
   "changelog": [
+    "FIXED: Installer now bundles web application (no more 'Web app not found' errors)",
     "FIXED: Automatic installer download and installation from GitHub releases",
     "FIXED: FFMPEG terminal window now hidden during video recording",
     "FIXED: Added edge-tts dependency for video narration",

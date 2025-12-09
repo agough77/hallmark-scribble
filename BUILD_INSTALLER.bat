@@ -22,6 +22,9 @@ python3.11.exe -m PyInstaller ^
     --icon=NONE ^
     --hidden-import=tkinter ^
     --hidden-import=tkinter.ttk ^
+    --add-data="web_app\dist\HallmarkScribble_Web;web_app\dist\HallmarkScribble_Web" ^
+    --add-data="HallmarkScribble_Updater.exe;." ^
+    --add-data="version.json;." ^
     --noconfirm ^
     installer.py
 

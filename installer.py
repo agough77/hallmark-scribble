@@ -35,8 +35,8 @@ class InstallerGUI:
         
         # Get script directory (or exe directory if frozen)
         if getattr(sys, 'frozen', False):
-            # Running as compiled executable
-            self.script_dir = Path(sys.executable).parent
+            # Running as compiled executable - PyInstaller creates a temp folder and stores path in _MEIPASS
+            self.script_dir = Path(sys._MEIPASS)
         else:
             # Running as script
             self.script_dir = Path(__file__).parent
