@@ -1,0 +1,1624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hallmark Scribble - Web Version</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #F5F5F5;
+            min-height: 100vh;
+            padding: 0;
+        }
+        
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            background: white;
+            overflow: hidden;
+        }
+        
+        .server-status {
+            background: #28a745;
+            color: white;
+            padding: 8px 20px;
+            text-align: center;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .server-status::before {
+            content: "●";
+            font-size: 1.2em;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .header {
+            background: #005A9C;
+            color: white;
+            padding: 20px 30px;
+            text-align: left;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 1.8em;
+            margin-bottom: 5px;
+            font-weight: 400;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .main-content {
+            padding: 30px;
+        }
+        
+        .quota-bar {
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        
+        .quota-bar.status-active {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+        }
+        
+        .quota-bar.status-limited {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+        }
+        
+        .quota-bar.status-error {
+            background: #ffebee;
+            border-left: 4px solid #f44336;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .tab {
+            padding: 15px 30px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1em;
+            color: #666;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .tab:hover {
+            color: #005A9C;
+        }
+        
+        .tab.active {
+            color: #005A9C;
+            border-bottom-color: #005A9C;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .card h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+        
+        .btn-primary {
+            background: #005A9C;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #004475;
+            box-shadow: 0 2px 8px rgba(0, 90, 156, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #218838;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-weight: 500;
+        }
+        
+        .status-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 4px solid #17a2b8;
+        }
+        
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .screenshot-preview {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .screenshot-item {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .screenshot-item img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+        }
+        
+        .screenshot-item .caption {
+            padding: 10px;
+            background: white;
+            text-align: center;
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .recordings-list {
+            list-style: none;
+        }
+        
+        .recording-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .recording-info h4 {
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .recording-info p {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        #dropZone {
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9ff;
+        }
+        
+        #dropZone:hover {
+            background: #e8ebff;
+            border-color: #764ba2;
+        }
+        
+        #dropZone.dragging {
+            background: #d1d6ff;
+            border-color: #764ba2;
+        }
+        
+        .guide-output {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            max-height: 500px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+        
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .dialog {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .dialog-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .button-grid {
+            display: grid;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="server-status">
+            Server Running - Close this browser tab or press Ctrl+C in the console to stop
+        </div>
+        <div class="header">
+            <h1>🎥 Hallmark Scribble</h1>
+            <p>Web-Based How-To Creator with AI</p>
+        </div>
+        
+        <div class="main-content">
+            <!-- Status Label -->
+            <div class="status-bar" style="background: #f8f9fa; padding: 10px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+                <strong id="statusLabel">Ready</strong>
+            </div>
+            
+            <!-- API Quota Status -->
+            <div id="quotaStatus" class="quota-bar" style="background: #e3f2fd; padding: 10px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>🤖 API Status:</strong> <span id="quotaStatusText">Checking...</span>
+                </div>
+                <button onclick="checkQuota()" style="padding: 5px 15px; background: #005A9C; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">Refresh</button>
+            </div>
+            
+            <!-- Screenshot How-To Section -->
+            <div class="card">
+                <h3>📸 Screenshot How-To</h3>
+                <p style="font-size: 12px; color: #4A90E2; margin-bottom: 10px;">1. Click Start and select screen/window/tab<br>2. Click anywhere to capture<br>3. Click Stop when done</p>
+                
+                <div id="screenshotCounter" style="margin-bottom: 10px; font-weight: 600;">Captures: 0</div>
+                
+                <div class="button-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <button class="btn btn-primary" onclick="startScreenshotMode()">Start</button>
+                    <button class="btn btn-danger" onclick="stopScreenshotMode()">Stop</button>
+                    <button class="btn btn-secondary" onclick="openEditor()">Editor</button>
+                </div>
+            </div>
+            
+            <!-- Separator -->
+            <hr style="border: none; border-top: 2px solid #e0e0e0; margin: 20px 0;">
+            
+            <!-- Video How-To Section -->
+            <div class="card">
+                <h3>🎥 Video How-To</h3>
+                <p style="font-size: 12px; color: #4A90E2; margin-bottom: 10px;">Hotkey: Ctrl+Alt+R | Click Start and select area to record</p>
+                
+                <div class="button-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                    <button class="btn btn-primary" onclick="startVideoRecording()">Start</button>
+                    <button class="btn btn-danger" onclick="stopVideoRecording()">Stop</button>
+                    <button class="btn btn-secondary" onclick="openVideoEditor()">Edit Video</button>
+                </div>
+            </div>
+            
+            <!-- Separator -->
+            <hr style="border: none; border-top: 2px solid #e0e0e0; margin: 20px 0;">
+            
+            <!-- Tools Section -->
+            <div class="card">
+                <h3>Tools</h3>
+                
+                <div class="button-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                    <button class="btn btn-secondary" onclick="openOutput()">Output</button>
+                    <button class="btn btn-secondary" onclick="openCleanup()">Cleanup</button>
+                    <button class="btn btn-secondary" onclick="showLogs()">Logs</button>
+                </div>
+                
+                <div class="button-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                    <button class="btn btn-secondary" onclick="openSettings()">Settings</button>
+                </div>
+            </div>
+            
+            <!-- Status Messages -->
+            <div id="status" class="status status-info hidden"></div>
+            
+            <!-- Guide Output -->
+            <div id="guideOutput" class="hidden">
+                <h3 style="margin-top: 30px; margin-bottom: 15px;">Generated Guide:</h3>
+                <div class="guide-output" id="guideText"></div>
+                <div style="margin-top: 15px;">
+                    <button class="btn btn-primary" onclick="generateSOP()">📄 Generate SOP (HTML)</button>
+                </div>
+            </div>
+            
+            <!-- Dialogs -->
+            <div id="recordingsDialog" class="dialog hidden">
+                <div class="dialog-content">
+                    <h3>🗑️ Cleanup Manager</h3>
+                    <p style="margin-bottom: 15px;">📁 Select recordings to delete from your library</p>
+                    <button class="btn btn-primary" onclick="loadRecordings()">Refresh List</button>
+                    <ul id="recordingsList" class="recordings-list" style="margin-top: 20px;"></ul>
+                    <div style="margin-top: 15px;">
+                        <button class="btn btn-secondary" onclick="closeDialog('recordingsDialog')">Close</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="settingsDialog" class="dialog hidden">
+                <div class="dialog-content">
+                    <h3>⚙️ Settings</h3>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">📁 Output Folder:</label>
+                        <div style="display: flex; gap: 5px;">
+                            <input type="text" id="outputFolder" placeholder="C:\Users\YourName\Documents" style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                            <button class="btn btn-secondary" onclick="selectOutputFolder()" style="padding: 10px 20px; white-space: nowrap;">Browse...</button>
+                        </div>
+                        <p style="font-size: 10px; color: #666; margin-top: 5px;">All recordings and screenshots will be saved to this folder</p>
+                    </div>
+                    
+                    <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 20px 0;">
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">🔑 Google Gemini API Key:</label>
+                        <input type="password" id="apiKeyInput" placeholder="Enter your API key here..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 5px;">
+                        <a href="https://makersuite.google.com/app/apikey" target="_blank" style="font-size: 10px; color: #4A90E2;">Get your free API key here</a>
+                    </div>
+                    
+                    <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 20px 0;">
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">🤖 Gemini Model:</label>
+                        <select id="geminiModel" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 5px;">
+                            <option value="">Loading models...</option>
+                        </select>
+                        <p style="font-size: 10px; color: #666;">Select which Gemini model to use for guide generation</p>
+                    </div>
+                    
+                    <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 20px 0;">
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 10px; font-weight: 600;">🐛 Client-Side Debugging:</label>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="debugClientErrors" style="width: 20px; height: 20px; cursor: pointer;">
+                            <label for="debugClientErrors" style="cursor: pointer; margin: 0;">Enable client-side error logging to server</label>
+                        </div>
+                        <p style="font-size: 10px; color: #666; margin-top: 5px;">When enabled, JavaScript errors will be logged to the server for debugging</p>
+                    </div>
+                    
+                    <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 20px 0;">
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 10px; font-weight: 600;">🖥️ Web Server:</label>
+                        <button class="btn btn-primary" onclick="restartWebServer()" style="width: 100%;">🔄 Restart Server</button>
+                        <p style="font-size: 10px; color: #666; margin-top: 5px;">This will restart the web server. The page will reload automatically.</p>
+                    </div>
+                    
+                    <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+                    <div id="settingsStatus" class="status status-info hidden" style="margin-top: 10px;"></div>
+                    <button class="btn btn-secondary" onclick="closeDialog('settingsDialog')" style="margin-top: 15px;">Close</button>
+                </div>
+            </div>
+            
+            <div id="logsDialog" class="dialog hidden">
+                <div class="dialog-content">
+                    <h3>📋 Logs</h3>
+                    <div style="background: white; padding: 15px; border-radius: 8px; max-height: 400px; overflow-y: auto;">
+                        <p><strong>Log Location:</strong> ~/Downloads/Hallmark Scribble Outputs/hallmark_scribble_web.log</p>
+                        <p style="margin-top: 10px;"><strong>Server URL:</strong> <span id="serverUrl"></span></p>
+                    </div>
+                    <button class="btn btn-secondary" onclick="closeDialog('logsDialog')" style="margin-top: 15px;">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentSessionId = null;
+        let currentOutputDir = null;
+        let uploadedFiles = [];
+        let screenshotCount = 0;
+        let isScreenshotMode = false;
+        let isRecording = false;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let screenshotStream = null;
+        
+        // Initialize
+        document.getElementById('serverUrl').textContent = window.location.origin;
+        
+        // Socket.IO for real-time updates (optional fallback)
+        const socket = io();
+        
+        // Progress polling for screenshot updates
+        let lastScreenshotCount = 0;
+        let progressPollingInterval = null;
+        
+        function startProgressPolling() {
+            if (progressPollingInterval) return;
+            progressPollingInterval = setInterval(async () => {
+                if (isScreenshotMode && currentOutputDir && currentSessionId) {
+                    try {
+                        const response = await fetch(`/api/progress?session_id=${currentSessionId}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data.screenshot_count > lastScreenshotCount) {
+                                screenshotCount = data.screenshot_count;
+                                lastScreenshotCount = data.screenshot_count;
+                                updateScreenshotCounter();
+                                showStatus(`Screenshot ${data.screenshot_count} captured!`, 'success');
+                            }
+                        }
+                    } catch (error) {
+                        console.debug('Progress poll error:', error);
+                    }
+                }
+            }, 500); // Poll every 500ms when recording
+        }
+        
+        function stopProgressPolling() {
+            if (progressPollingInterval) {
+                clearInterval(progressPollingInterval);
+                progressPollingInterval = null;
+            }
+        }
+        
+        // Check quota on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            checkQuota();
+            // Auto-refresh every 5 minutes
+            setInterval(checkQuota, 5 * 60 * 1000);
+        });
+        
+        socket.on('screenshot_captured', function(data) {
+            screenshotCount = data.count;
+            updateScreenshotCounter();
+            showStatus(`Screenshot ${data.count} captured!`, 'success');
+        });
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Spacebar - Capture screenshot when in screenshot mode
+            if (e.code === 'Space' && isScreenshotMode && captureVideo && currentOutputDir) {
+                e.preventDefault();
+                captureScreenshot();
+            }
+            
+            // Shift+Alt+H - Capture screenshot (like desktop Shift+Alt+H)
+            if (e.shiftKey && e.altKey && e.key === 'H') {
+                e.preventDefault();
+                if (isScreenshotMode && captureVideo && currentOutputDir) {
+                    captureScreenshot();
+                } else if (!isScreenshotMode) {
+                    startScreenshotMode();
+                }
+            }
+            
+            // Ctrl+Alt+R - Toggle video recording (like desktop)
+            if (e.ctrlKey && e.altKey && e.key === 'r') {
+                e.preventDefault();
+                if (isRecording) {
+                    stopVideoRecording();
+                } else {
+                    startVideoRecording();
+                }
+            }
+        });
+        
+        // Update status label
+        function updateStatus(message, type = 'info') {
+            const statusLabel = document.getElementById('statusLabel');
+            if (!statusLabel) return;
+            statusLabel.textContent = message;
+            statusLabel.style.color = type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : '#333';
+        }
+        
+        // Screenshot mode functions
+        async function startScreenshotMode() {
+            // Prevent multiple simultaneous recording sessions
+            if (isScreenshotMode || isRecording) {
+                showStatus('A recording session is already active. Please stop it first.', 'warning');
+                return;
+            }
+            
+            try {
+                // Show simple HTML picker dialog
+                const captureModeResult = await showCaptureModePicker();
+                if (!captureModeResult) {
+                    showStatus('Screenshot mode cancelled', 'info');
+                    return;
+                }
+                
+                // Start backend recording with selected mode
+                showStatus('Starting screenshot mode...', 'info');
+                const response = await fetch('/api/start_recording', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        mode: 'screenshot',
+                        capture_mode: captureModeResult.mode,
+                        window_region: captureModeResult.region
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    currentSessionId = data.session_id;
+                    currentOutputDir = data.output_dir;
+                    isScreenshotMode = true;
+                    screenshotCount = 0;
+                    lastScreenshotCount = 0;
+                    updateScreenshotCounter();
+                    startProgressPolling();
+                    
+                    const modeText = captureModeResult.mode === 'window' ? 'window' : 'fullscreen';
+                    updateStatus(`Screenshot mode active (${modeText}) - Click anywhere to capture!`, 'success');
+                    showStatus(`Screenshot mode active (${modeText})! Click anywhere to capture.`, 'success');
+                } else {
+                    updateStatus('Error: ' + data.error, 'error');
+                    showStatus('Error: ' + data.error, 'error');
+                }
+            } catch(err) {
+                updateStatus('Error: ' + err.message, 'error');
+                showStatus('Error: ' + err.message, 'error');
+            }
+        }
+        
+        // Simple HTML dialog for capture mode selection
+        function showCaptureModePicker() {
+            return new Promise((resolve) => {
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                    background: rgba(0,0,0,0.7); display: flex;
+                    align-items: center; justify-content: center; z-index: 10000;
+                `;
+                
+                const dialog = document.createElement('div');
+                dialog.style.cssText = `
+                    background: white; padding: 30px; border-radius: 10px;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-width: 400px;
+                `;
+                
+                dialog.innerHTML = `
+                    <h3 style="margin: 0 0 20px 0; color: #333;">Choose Capture Mode</h3>
+                    <button class="mode-btn" data-mode="fullscreen" style="
+                        display: block; width: 100%; padding: 15px; margin: 10px 0;
+                        font-size: 15px; border: 2px solid #ddd; border-radius: 5px;
+                        background: white; cursor: pointer; transition: all 0.2s;
+                    ">🖥️ Full Screen</button>
+                    <button class="mode-btn" data-mode="window" style="
+                        display: block; width: 100%; padding: 15px; margin: 10px 0;
+                        font-size: 15px; border: 2px solid #ddd; border-radius: 5px;
+                        background: white; cursor: pointer; transition: all 0.2s;
+                    ">🪟 Specific Window</button>
+                    <button id="cancel-btn" style="
+                        display: block; width: 100%; padding: 10px; margin: 20px 0 0 0;
+                        font-size: 14px; border: 1px solid #ccc; border-radius: 5px;
+                        background: #f5f5f5; cursor: pointer;
+                    ">Cancel</button>
+                `;
+                
+                modal.appendChild(dialog);
+                document.body.appendChild(modal);
+                
+                // Add hover effects
+                const btns = dialog.querySelectorAll('.mode-btn:not([disabled])');
+                btns.forEach(btn => {
+                    btn.addEventListener('mouseenter', () => {
+                        btn.style.background = '#e3f2fd';
+                        btn.style.borderColor = '#2196F3';
+                    });
+                    btn.addEventListener('mouseleave', () => {
+                        btn.style.background = 'white';
+                        btn.style.borderColor = '#ddd';
+                    });
+                    btn.addEventListener('click', async () => {
+                        const mode = btn.dataset.mode;
+                        document.body.removeChild(modal);
+                        
+                        if (mode === 'window') {
+                            // Show window picker
+                            try {
+                                const windowRegion = await showWindowPicker();
+                                console.log('Window picker returned:', windowRegion);
+                                resolve({ mode: 'window', region: windowRegion });
+                            } catch (error) {
+                                console.error('Window selection cancelled:', error);
+                                resolve(null);
+                            }
+                        } else {
+                            resolve({ mode: mode, region: null });
+                        }
+                    });
+                });
+                
+                dialog.querySelector('#cancel-btn').addEventListener('click', () => {
+                    document.body.removeChild(modal);
+                    resolve(null);
+                });
+            });
+        }
+        
+        async function showWindowPicker() {
+            return new Promise(async (resolve, reject) => {
+                // Get list of open windows from backend
+                try {
+                    const response = await fetch('/api/get_windows');
+                    const data = await response.json();
+                    
+                    if (!data.success || !data.windows || data.windows.length === 0) {
+                        alert('No windows found to capture');
+                        reject(new Error('No windows available'));
+                        return;
+                    }
+                    
+                    // Create modal
+                    const modal = document.createElement('div');
+                    modal.style.cssText = `
+                        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                        background: rgba(0,0,0,0.5); display: flex; align-items: center;
+                        justify-content: center; z-index: 10000;
+                    `;
+                    
+                    const dialog = document.createElement('div');
+                    dialog.style.cssText = `
+                        background: white; padding: 30px; border-radius: 10px;
+                        box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-width: 500px;
+                        max-height: 70vh; overflow-y: auto;
+                    `;
+                    
+                    let windowsHtml = '<h3 style="margin: 0 0 20px 0; color: #333;">Select Window to Capture</h3>';
+                    windowsHtml += '<div class=\"window-list\">';
+                    
+                    data.windows.forEach((win, index) => {
+                        windowsHtml += `
+                            <button class=\"window-btn\" data-index=\"${index}\" style=\"
+                                display: block; width: 100%; padding: 12px; margin: 8px 0;
+                                text-align: left; border: 2px solid #ddd; border-radius: 5px;
+                                background: white; cursor: pointer; transition: all 0.2s;
+                            \">
+                                <strong style=\"display: block; color: #333; margin-bottom: 5px;\">${win.title}</strong>
+                                <small style=\"color: #666;\">${win.app_name}</small>
+                            </button>
+                        `;
+                    });
+                    
+                    windowsHtml += '</div>';
+                    windowsHtml += `
+                        <button id=\"cancel-window-btn\" style=\"
+                            display: block; width: 100%; padding: 10px; margin: 20px 0 0 0;
+                            font-size: 14px; border: 1px solid #ccc; border-radius: 5px;
+                            background: #f5f5f5; cursor: pointer;
+                        \">Cancel</button>
+                    `;
+                    
+                    dialog.innerHTML = windowsHtml;
+                    modal.appendChild(dialog);
+                    document.body.appendChild(modal);
+                    
+                    // Add hover effects and click handlers
+                    const btns = dialog.querySelectorAll('.window-btn');
+                    btns.forEach(btn => {
+                        btn.addEventListener('mouseenter', () => {
+                            btn.style.background = '#e3f2fd';
+                            btn.style.borderColor = '#2196F3';
+                        });
+                        btn.addEventListener('mouseleave', () => {
+                            btn.style.background = 'white';
+                            btn.style.borderColor = '#ddd';
+                        });
+                        btn.addEventListener('click', () => {
+                            const index = parseInt(btn.dataset.index);
+                            const selectedWindow = data.windows[index];
+                            console.log('Selected window:', selectedWindow);
+                            console.log('Window region:', selectedWindow.region);
+                            document.body.removeChild(modal);
+                            resolve(selectedWindow.region);
+                        });
+                    });
+                    
+                    dialog.querySelector('#cancel-window-btn').addEventListener('click', () => {
+                        document.body.removeChild(modal);
+                        reject(new Error('Window selection cancelled'));
+                    });
+                    
+                } catch (error) {
+                    console.error('Error getting windows:', error);
+                    alert('Failed to get window list');
+                    reject(error);
+                }
+            });
+        }
+        
+        async function stopScreenshotMode() {
+            try {
+                // Clean up any remaining stream
+                if (screenshotStream) {
+                    screenshotStream.getTracks().forEach(track => track.stop());
+                    screenshotStream = null;
+                }
+                
+                // Call backend API to stop the input logger and screenshot thread
+                if (currentSessionId) {
+                    updateStatus('Stopping screenshot mode...', 'info');
+                    const response = await fetch('/api/stop_recording', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({session_id: currentSessionId})
+                    });
+                    
+                    const data = await response.json();
+                    if (!data.success) {
+                        console.error('Failed to stop recording:', data.error);
+                    }
+                }
+                
+                isScreenshotMode = false;
+                
+                // Auto-generate guide after stopping
+                if (screenshotCount > 0 && currentOutputDir) {
+                    updateStatus('Generating AI-powered guide...', 'info');
+                    showStatus('Generating AI guide...', 'info');
+                    generateGuideAutomatically();
+                } else {
+                    updateStatus('Screenshot mode stopped', 'info');
+                    showStatus('Screenshot mode stopped.', 'info');
+                }
+            } catch(err) {
+                updateStatus('Error: ' + err.message, 'error');
+                showStatus('Error: ' + err.message, 'error');
+            }
+        }
+        
+        async function generateGuideAutomatically() {
+            try {
+                const response = await fetch('/api/generate_guide', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({output_dir: currentOutputDir})
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('guideText').textContent = data.guide;
+                    document.getElementById('guideOutput').classList.remove('hidden');
+                    updateStatus(`✓ Complete! ${screenshotCount} screenshots with AI guide`, 'success');
+                    showStatus('Guide generated successfully!', 'success');
+                } else {
+                    // Show detailed error message
+                    let errorMsg = data.error || 'Failed to generate guide';
+                    if (data.error_type === 'rate_limit') {
+                        errorMsg = '⚠️ API Rate Limit: ' + errorMsg + ' Check quota status above.';
+                        checkQuota(); // Refresh quota status
+                    } else if (data.error_type === 'invalid_model') {
+                        errorMsg = '⚠️ Model Error: ' + errorMsg;
+                    } else if (data.error_type === 'safety') {
+                        errorMsg = '⚠️ Safety Filter: ' + errorMsg;
+                    }
+                    updateStatus('Screenshot session ended - ' + errorMsg, 'error');
+                    showStatus(errorMsg, 'error');
+                }
+            } catch (err) {
+                updateStatus('Screenshot session ended', 'info');
+                showStatus('Session ended. Click Generate Guide manually if needed.', 'info');
+            }
+        }
+        
+        // Click capture functionality
+        let captureStream = null;
+        let captureVideo = null;
+        
+        async function startClickCapture() {
+            try {
+                console.log('Starting click capture...');
+                
+                // Add click listener immediately
+                window.addEventListener('click', handleCaptureClick, true);
+                console.log('Click listener added');
+                
+                // Request screen capture permission
+                captureStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { 
+                        mediaSource: 'screen',
+                        cursor: 'always'
+                    }
+                });
+                
+                console.log('Got display media stream');
+                
+                // Create hidden video element
+                captureVideo = document.createElement('video');
+                captureVideo.autoplay = true;
+                captureVideo.muted = true;
+                captureVideo.style.position = 'fixed';
+                captureVideo.style.top = '-9999px';
+                captureVideo.style.left = '-9999px';
+                captureVideo.srcObject = captureStream;
+                document.body.appendChild(captureVideo);
+                
+                console.log('Video element created');
+                
+                // Start playing and wait for it to be ready
+                captureVideo.play();
+                
+                // Give it a moment to initialize
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                console.log('Video dimensions:', captureVideo.videoWidth, 'x', captureVideo.videoHeight);
+                
+                showStatus('Click capture ready! Click anywhere to take screenshots.', 'success');
+            } catch (err) {
+                console.error('startClickCapture error:', err);
+                window.removeEventListener('click', handleCaptureClick, true);
+                if (err.name === 'NotAllowedError') {
+                    showStatus('Screen capture permission denied', 'error');
+                } else {
+                    showStatus('Error starting click capture: ' + err.message, 'error');
+                }
+                isScreenshotMode = false;
+            }
+        }
+        
+        function stopClickCapture() {
+            // Remove click listener
+            window.removeEventListener('click', handleCaptureClick, true);
+            
+            // Stop stream
+            if (captureStream) {
+                captureStream.getTracks().forEach(track => track.stop());
+                captureStream = null;
+            }
+            
+            // Remove video element
+            if (captureVideo) {
+                captureVideo.remove();
+                captureVideo = null;
+            }
+        }
+        
+        function handleCaptureClick(event) {
+            console.log('=== CLICK DETECTED ===');
+            console.log('isScreenshotMode:', isScreenshotMode);
+            console.log('captureVideo exists:', !!captureVideo);
+            console.log('currentOutputDir:', currentOutputDir);
+            console.log('videoWidth:', captureVideo?.videoWidth);
+            console.log('videoHeight:', captureVideo?.videoHeight);
+            console.log('target:', event.target.tagName);
+            
+            if (!isScreenshotMode) {
+                console.log('FAIL: Not in screenshot mode');
+                return;
+            }
+            
+            if (!captureVideo) {
+                console.log('FAIL: No capture video');
+                return;
+            }
+            
+            if (!currentOutputDir) {
+                console.log('FAIL: No output directory');
+                return;
+            }
+            
+            // Don't capture clicks on buttons/inputs
+            if (event.target.tagName === 'BUTTON' || event.target.tagName === 'INPUT' || event.target.closest('.dialog')) {
+                console.log('SKIP: Clicked on button/input/dialog');
+                return;
+            }
+            
+            captureScreenshot();
+        }
+        
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('output_dir', currentOutputDir);
+            
+            try {
+                const response = await fetch('/api/upload_screenshot', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    screenshotCount++;
+                    updateScreenshotCounter();
+                    console.log('Screenshot uploaded successfully');
+                } else {
+                    console.error('Upload failed:', data.error);
+                    showStatus('Upload failed: ' + data.error, 'error');
+                }
+            } catch (err) {
+                console.error('Upload error:', err);
+                showStatus('Upload error: ' + err.message, 'error');
+            }
+        }
+        
+        function captureScreenshot() {
+            // Verify video dimensions are available
+            if (!captureVideo || !captureVideo.videoWidth || !captureVideo.videoHeight) {
+                console.error('FAIL: Video dimensions not available:', captureVideo?.videoWidth, 'x', captureVideo?.videoHeight);
+                showStatus('Error: Video not ready. Please try again.', 'error');
+                return;
+            }
+            
+            console.log('✓ All checks passed - capturing screenshot...');
+            
+            // Capture screenshot
+            const canvas = document.createElement('canvas');
+            canvas.width = captureVideo.videoWidth;
+            canvas.height = captureVideo.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(captureVideo, 0, 0);
+            
+            canvas.toBlob(async (blob) => {
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const filename = `screenshot_${String(screenshotCount + 1).padStart(3, '0')}_${timestamp}.png`;
+                const file = new File([blob], filename, { type: 'image/png' });
+                console.log('Uploading screenshot:', filename);
+                uploadFile(file);
+            }, 'image/png');
+            
+            // Visual feedback
+            updateStatus(`✓ Captured screenshot ${screenshotCount + 1} - Press SPACE for next`, 'success');
+            showStatus(`Screenshot ${screenshotCount + 1} captured!`, 'success');
+        }
+        
+        function updateScreenshotCounter() {
+            const counter = document.getElementById('screenshotCounter');
+            if (counter) {
+                counter.textContent = `Captures: ${screenshotCount}`;
+            }
+        }
+        
+        // Video recording functions
+        async function startVideoRecording() {
+            // Prevent multiple simultaneous recording sessions
+            if (isRecording || isScreenshotMode) {
+                showStatus('A recording session is already active. Please stop it first.', 'warning');
+                return;
+            }
+            
+            try {
+                // Show capture mode picker (fullscreen or window)
+                const captureModeResult = await showCaptureModePicker();
+                console.log('Capture mode result:', captureModeResult);
+                if (!captureModeResult) {
+                    showStatus('Video recording cancelled', 'info');
+                    return;
+                }
+                
+                // Start backend video recording with selected mode
+                showStatus('Starting video recording...', 'info');
+                console.log('Sending to backend:', {
+                    mode: 'video',
+                    capture_mode: captureModeResult.mode,
+                    window_region: captureModeResult.region
+                });
+                const response = await fetch('/api/start_recording', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        mode: 'video',
+                        capture_mode: captureModeResult.mode,
+                        window_region: captureModeResult.region
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    currentSessionId = data.session_id;
+                    currentOutputDir = data.output_dir;
+                    isRecording = true;
+                    
+                    updateStatus(`Recording video (${captureModeResult.mode})...`, 'success');
+                    const statusText = document.getElementById('statusText');
+                    if (statusText) {
+                        statusText.textContent = `Status: Recording video (${captureModeResult.mode})... | Output: ${currentOutputDir}`;
+                    }
+                } else {
+                    showStatus(`Failed to start video recording: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`Error: ${error.message}`, 'error');
+                console.error('Error starting video recording:', error);
+            }
+        }
+        
+        async function stopVideoRecording() {
+            if (!isRecording) {
+                showStatus('No video recording in progress', 'warning');
+                return;
+            }
+            
+            try {
+                showStatus('Stopping video recording...', 'info');
+                
+                const response = await fetch('/api/stop_recording', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        session_id: currentSessionId
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    isRecording = false;
+                    updateStatus('Video recording stopped', 'success');
+                    showStatus('Video recording saved', 'success');
+                } else {
+                    showStatus(`Failed to stop recording: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`Error: ${error.message}`, 'error');
+                console.error('Error stopping video recording:', error);
+            }
+        }
+        
+        function openVideoEditor() {
+            if (!currentOutputDir) {
+                showStatus('No active session. Start a video recording first!', 'error');
+                return;
+            }
+            
+            // Open video editor in new tab/window
+            const videoPath = currentOutputDir + '\\recording.mp4';
+            window.open(`/video_editor?path=${encodeURIComponent(videoPath)}`, '_blank');
+        }
+        
+        function openEditor() {
+            if (!currentOutputDir) {
+                showStatus('No active session. Start a recording first!', 'error');
+                return;
+            }
+            // Navigate to editor in same window
+            const editorUrl = `/editor?path=${encodeURIComponent(currentOutputDir)}`;
+            window.location.href = editorUrl;
+        }
+        
+        function openEditorForPath(path) {
+            // Detect recording type and route to correct editor
+            fetch('/api/detect_recording_type', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({path: path})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    if (data.type === 'video') {
+                        // Open video editor
+                        const videoPath = path.replace(/\\\\/g, '/') + '/recording.mp4';
+                        window.location.href = `/video_editor?video=${encodeURIComponent(videoPath)}`;
+                    } else if (data.type === 'screenshot') {
+                        // Open screenshot editor (when implemented)
+                        showStatus('Screenshot editor coming soon! Path: ' + path, 'info');
+                    } else {
+                        showStatus('Unknown recording type', 'error');
+                    }
+                } else {
+                    showStatus('Error detecting recording type: ' + data.error, 'error');
+                }
+            })
+            .catch(err => {
+                showStatus('Error: ' + err.message, 'error');
+            });
+        }
+        
+        function showPreview() {
+            if (!currentOutputDir) {
+                showStatus('No active session. Start a recording first!', 'error');
+                return;
+            }
+            showStatus('Preview feature coming soon!', 'info');
+        }
+        
+        // Tools functions
+        function openOutput() {
+            window.location.href = '/api/browse_output';
+        }
+        
+        function openCleanup() {
+            loadRecordings();
+            document.getElementById('recordingsDialog').classList.remove('hidden');
+        }
+        
+        function showLogs() {
+            window.location.href = '/api/view_logs';
+        }
+        
+        function openSettings() {
+            loadSettings();
+            document.getElementById('settingsDialog').classList.remove('hidden');
+        }
+        
+        function checkQuota() {
+            fetch('/api/gemini_quota')
+            .then(r => r.json())
+            .then(data => {
+                const quotaBar = document.getElementById('quotaStatus');
+                const quotaText = document.getElementById('quotaStatusText');
+                
+                if (!quotaBar || !quotaText) return;
+                
+                if (data.success) {
+                    if (data.status === 'Active') {
+                        quotaBar.style.background = '#e8f5e9';
+                        quotaBar.style.borderLeft = '4px solid #4caf50';
+                        quotaText.innerHTML = `<span style="color: #4caf50;">✓ Active</span> - Model: ${data.model}<br><span style="font-size: 11px;">${data.note}</span>`;
+                    } else if (data.status === 'Rate Limited') {
+                        quotaBar.style.background = '#fff3e0';
+                        quotaBar.style.borderLeft = '4px solid #ff9800';
+                        quotaText.innerHTML = `<span style="color: #ff9800;">⚠ Rate Limited</span><br><span style="font-size: 11px;">${data.info}</span>`;
+                    }
+                } else {
+                    quotaBar.style.background = '#ffebee';
+                    quotaBar.style.borderLeft = '4px solid #f44336';
+                    quotaText.innerHTML = `<span style="color: #f44336;">✗ ${data.status}</span><br><span style="font-size: 11px;">${data.error || 'Check API key in settings'}</span>`;
+                }
+            })
+            .catch(err => {
+                const quotaText = document.getElementById('quotaStatusText');
+                if (quotaText) {
+                    quotaText.textContent = 'Error checking status';
+                }
+            });
+        }
+        
+        function closeDialog(dialogId) {
+            document.getElementById(dialogId).classList.add('hidden');
+        }
+        
+        // Screenshot capture using Screen Capture API (manual capture button)
+        async function captureScreenshot() {
+            if (!currentOutputDir) {
+                // If no session, start one first
+                await startScreenshotMode();
+                return;
+            }
+            
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { mediaSource: 'screen' }
+                });
+                
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.play();
+                
+                await new Promise(resolve => {
+                    video.onloadedmetadata = resolve;
+                });
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0);
+                
+                stream.getTracks().forEach(track => track.stop());
+                
+                canvas.toBlob(async (blob) => {
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    const filename = `screenshot_${String(screenshotCount + 1).padStart(3, '0')}_${timestamp}.png`;
+                    const file = new File([blob], filename, { type: 'image/png' });
+                    uploadFile(file);
+                }, 'image/png');
+                
+                showStatus('Screenshot captured!', 'success');
+            } catch (err) {
+                if (err.name === 'NotAllowedError') {
+                    showStatus('Screen capture was cancelled', 'error');
+                } else {
+                    showStatus('Error capturing screenshot: ' + err.message, 'error');
+                }
+            }
+        }
+        
+        function generateGuide() {
+            generateVideoGuide();
+        }
+        
+        function clearScreenshots() {
+            document.getElementById('screenshotPreview').innerHTML = '';
+            document.getElementById('guideOutput').classList.add('hidden');
+            uploadedFiles = [];
+            screenshotCount = 0;
+            lastScreenshotCount = 0;
+            updateScreenshotCounter();
+            stopProgressPolling();
+            showStatus('Cleared all screenshots', 'info');
+        }
+        
+        let selectedRecordings = [];
+        
+        function loadRecordings() {
+            const list = document.getElementById('recordingsList');
+            if (!list) return;
+            list.innerHTML = '<div class="loader"></div>';
+            selectedRecordings = [];
+            
+            fetch('/api/list_recordings')
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    list.innerHTML = '';
+                    if (data.recordings.length === 0) {
+                        list.innerHTML = '<p style="text-align: center; color: #666;">No recordings found</p>';
+                    } else {
+                        data.recordings.forEach((rec, idx) => {
+                            const li = document.createElement('li');
+                            li.className = 'recording-item';
+                            li.innerHTML = `
+                                <label style="display: flex; align-items: center; width: 100%; cursor: pointer;">
+                                    <input type="checkbox" class="recording-checkbox" data-path="${rec.path}" onchange="toggleRecordingSelection('${rec.path}', this.checked)" style="margin-right: 10px;">
+                                    <div class="recording-info" style="flex: 1;">
+                                        <h4>${rec.date} / ${rec.name}</h4>
+                                        <p>${rec.file_count} files - ${rec.path}</p>
+                                    </div>
+                                </label>
+                            `;
+                            list.appendChild(li);
+                        });
+                        
+                        // Add buttons container
+                        const btnContainer = document.createElement('div');
+                        btnContainer.style.marginTop = '15px';
+                        btnContainer.style.display = 'flex';
+                        btnContainer.style.gap = '10px';
+                        
+                        // Add select all button
+                        const selectAllBtn = document.createElement('button');
+                        selectAllBtn.className = 'btn btn-secondary';
+                        selectAllBtn.textContent = '☑️ Select All';
+                        selectAllBtn.onclick = selectAllRecordings;
+                        btnContainer.appendChild(selectAllBtn);
+                        
+                        // Add delete button
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.className = 'btn btn-danger';
+                        deleteBtn.textContent = '🗑️ Delete Selected';
+                        deleteBtn.onclick = deleteSelectedRecordings;
+                        btnContainer.appendChild(deleteBtn);
+                        
+                        list.appendChild(btnContainer);
+                    }
+                }
+            })
+            .catch(err => {
+                list.innerHTML = '<p style="color: red;">Error loading recordings</p>';
+            });
+        }
+        
+        function selectAllRecordings() {
+            const checkboxes = document.querySelectorAll('.recording-checkbox');
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            
+            checkboxes.forEach(cb => {
+                cb.checked = !allChecked;
+                toggleRecordingSelection(cb.dataset.path, cb.checked);
+            });
+        }
+        
+        function toggleRecordingSelection(path, checked) {
+            if (checked) {
+                if (!selectedRecordings.includes(path)) {
+                    selectedRecordings.push(path);
+                }
+            } else {
+                selectedRecordings = selectedRecordings.filter(p => p !== path);
+            }
+        }
+        
+        async function deleteSelectedRecordings() {
+            if (selectedRecordings.length === 0) {
+                showStatus('No recordings selected', 'error');
+                return;
+            }
+            
+            if (!confirm(`Delete ${selectedRecordings.length} recording(s)? This cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/delete_recordings', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({paths: selectedRecordings})
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showStatus(`Deleted ${data.deleted} recording(s)`, 'success');
+                    selectedRecordings = []; // Clear selection after delete
+                    loadRecordings(); // Reload the list
+                } else {
+                    showStatus('Error deleting: ' + data.error, 'error');
+                }
+            } catch (err) {
+                showStatus('Error: ' + err.message, 'error');
+            }
+        }
+        
+        function loadSettings() {
+            // Load available models first
+            fetch('/api/gemini_models')
+            .then(r => r.json())
+            .then(data => {
+                const modelSelect = document.getElementById('geminiModel');
+                if (!modelSelect) return;
+                modelSelect.innerHTML = ''; // Clear loading message
+                
+                if (data.success && data.models.length > 0) {
+                    data.models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.name;
+                        option.textContent = `${model.display_name}${model.description ? ' - ' + model.description : ''}`;
+                        modelSelect.appendChild(option);
+                    });
+                } else {
+                    // Fallback if models can't be loaded
+                    const fallback = [
+                        {name: 'gemini-2.0-flash-exp', display_name: 'Gemini 2.0 Flash (Experimental)', description: 'Fast & Latest'},
+                        {name: 'gemini-1.5-flash', display_name: 'Gemini 1.5 Flash', description: 'Fast & Stable'},
+                        {name: 'gemini-1.5-pro', display_name: 'Gemini 1.5 Pro', description: 'Most Capable'}
+                    ];
+                    fallback.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.name;
+                        option.textContent = `${model.display_name} - ${model.description}`;
+                        modelSelect.appendChild(option);
+                    });
+                }
+                
+                // Now load the saved settings
+                fetch('/api/config?includeApiKey=true')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('outputFolder').value = data.config.OUTPUT_FOLDER || '';
+                        document.getElementById('apiKeyInput').value = data.config.GEMINI_API_KEY || '';
+                        document.getElementById('geminiModel').value = data.config.GEMINI_MODEL || 'gemini-2.0-flash-exp';
+                    }
+                    
+                    // Load client-side debug setting from localStorage
+                    const debugEnabled = localStorage.getItem('debugClientErrors') === 'true';
+                    document.getElementById('debugClientErrors').checked = debugEnabled;
+                });
+            });
+        }
+        
+        function restartWebServer() {
+            if (!confirm('Are you sure you want to restart the web server? Any active recordings will be stopped.')) {
+                return;
+            }
+            
+            fetch('/api/restart', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(err => {
+                alert('Server error: ' + err.message);
+            });
+        }
+        
+        async function selectOutputFolder() {
+            try {
+                // Call backend API to show folder picker dialog
+                const response = await fetch('/api/select_folder', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                
+                const data = await response.json();
+                if (data.success && data.folder_path) {
+                    document.getElementById('outputFolder').value = data.folder_path;
+                } else if (data.error) {
+                    alert('Error selecting folder: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error opening folder dialog: ' + error.message);
+            }
+        }
+        
+        function saveSettings() {
+            const outputFolder = document.getElementById('outputFolder').value;
+            const apiKey = document.getElementById('apiKeyInput').value;
+            const geminiModel = document.getElementById('geminiModel').value;
+            const debugEnabled = document.getElementById('debugClientErrors').checked;
+            
+            // Save client-side debug setting to localStorage
+            localStorage.setItem('debugClientErrors', debugEnabled.toString());
+            
+            const updateData = {};
+            if (outputFolder) updateData.OUTPUT_FOLDER = outputFolder;
+            if (apiKey) updateData.GEMINI_API_KEY = apiKey;
+            if (geminiModel) updateData.GEMINI_MODEL = geminiModel;
+            
+            fetch('/api/config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(updateData)
+            })
+            .then(r => r.json())
+            .then(data => {
+                const status = document.getElementById('settingsStatus');
+                if (data.success) {
+                    status.textContent = 'Settings saved successfully!';
+                    status.className = 'status status-success';
+                } else {
+                    status.textContent = 'Error: ' + data.error;
+                    status.className = 'status status-error';
+                }
+                status.classList.remove('hidden');
+            });
+        }
+        
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            if (!status) return;
+            status.innerHTML = message;  // Changed from textContent to innerHTML to allow links
+            status.className = `status status-${type}`;
+            status.classList.remove('hidden');
+        }
+        
+        async function generateSOP() {
+            if (!currentOutputDir) {
+                showStatus('No active session. Start a recording first!', 'error');
+                return;
+            }
+            
+            const guideText = document.getElementById('guideText').textContent;
+            if (!guideText) {
+                showStatus('No guide content to convert to SOP', 'error');
+                return;
+            }
+            
+            try {
+                showStatus('Generating SOP document...', 'info');
+                
+                const response = await fetch('/api/generate_sop', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        guide_content: guideText,
+                        title: 'Standard Operating Procedure',
+                        output_dir: currentOutputDir
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    // Open HTML in new tab
+                    const sopUrl = `/api/serve_sop/${encodeURIComponent(data.sop_html_path)}`;
+                    window.open(sopUrl, '_blank');
+                    showStatus('✅ SOP generated! Opening in new tab...', 'success');
+                } else {
+                    showStatus('Error generating SOP: ' + data.error, 'error');
+                }
+            } catch (err) {
+                showStatus('Error: ' + err.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

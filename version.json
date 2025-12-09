@@ -1,0 +1,15 @@
+{
+  "version": "1.0.2",
+  "release_date": "2025-12-09",
+  "download_url": "https://github.com/YOUR_ORG/hallmark-scribble/releases/download/v1.0.2/HallmarkScribble_v1.0.2.zip",
+  "sha256": "HASH_WILL_BE_GENERATED",
+  "changelog": [
+    "FIXED: FFMPEG terminal window now hidden during video recording",
+    "FIXED: Added edge-tts dependency for video narration",
+    "FIXED: Restart server no longer crashes application",
+    "FIXED: Config file moved to AppData for write permissions",
+    "ADDED: Browse button for output folder selection in settings"
+  ],
+  "minimum_version": "1.0.0",
+  "critical_update": true
+}

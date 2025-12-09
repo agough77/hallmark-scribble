@@ -1,0 +1,1359 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Advanced Video Editor - Hallmark Scribble</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #F5F5F5;
+            color: #333;
+            overflow-x: hidden;
+        }
+        
+        .header {
+            background: #005A9C;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            color: white;
+            font-size: 28px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .back-btn {
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s;
+        }
+        
+        .back-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .editor-container {
+            display: grid;
+            grid-template-columns: 300px 1fr 350px;
+            grid-template-rows: 1fr auto;
+            height: calc(100vh - 80px);
+            gap: 0;
+        }
+        
+        .sidebar {
+            background: white;
+            padding: 20px;
+            overflow-y: auto;
+            border-right: 1px solid #ddd;
+        }
+        
+        .sidebar h3 {
+            color: #005A9C;
+            margin-bottom: 15px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+        
+        .tool-section {
+            margin-bottom: 25px;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #005A9C;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            background: #004475;
+            box-shadow: 0 2px 8px rgba(0, 90, 156, 0.3);
+        }
+        
+        .btn:disabled {
+            background: #ccc;
+            color: #666;
+            cursor: not-allowed;
+        }
+        
+        .btn.small {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+        
+        .btn.success { background: #48bb78; }
+        .btn.success:hover { background: #38a169; }
+        .btn.danger { background: #f56565; }
+        .btn.danger:hover { background: #e53e3e; }
+        .btn.warning { background: #ed8936; }
+        .btn.warning:hover { background: #dd6b20; }
+        
+        .video-preview {
+            background: #2a2a2a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+        }
+        
+        #mainVideo {
+            max-width: 100%;
+            max-height: calc(100% - 100px);
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        
+        .video-controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .properties-panel {
+            background: white;
+            padding: 20px;
+            overflow-y: auto;
+            border-left: 1px solid #ddd;
+        }
+        
+        .property-group {
+            margin-bottom: 20px;
+        }
+        
+        .property-group label {
+            display: block;
+            color: #666;
+            font-size: 12px;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+        
+        .property-group input, .property-group select {
+            width: 100%;
+            padding: 10px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .timeline {
+            grid-column: 1 / -1;
+            background: #e8e8e8;
+            border-top: 1px solid #ddd;
+            padding: 15px;
+            height: 200px;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+        
+        .timeline-ruler {
+            height: 30px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            position: relative;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+        }
+        
+        .timeline-marker {
+            position: absolute;
+            width: 2px;
+            height: 100%;
+            background: #005A9C;
+            top: 0;
+        }
+        
+        .timeline-tracks {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .track {
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 10px;
+            min-height: 60px;
+            position: relative;
+        }
+        
+        .track-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        
+        .clip {
+            background: #005A9C;
+            padding: 8px 12px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+            font-size: 12px;
+            cursor: move;
+            user-select: none;
+            position: relative;
+            margin-right: 5px;
+        }
+        
+        .clip input[type="checkbox"] {
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+        }
+        
+        .clip.selected {
+            outline: 2px solid #48bb78;
+            outline-offset: 2px;
+        }
+        
+        .status-bar {
+            background: #f0f0f0;
+            padding: 12px 20px;
+            font-size: 13px;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+            border-top: 1px solid #ddd;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 4px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        
+        .modal-content h3 {
+            color: #005A9C;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .spinner {
+            border: 3px solid #ddd;
+            border-top: 3px solid #005A9C;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .notification {
+            position: fixed;
+            top: 100px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            z-index: 2000;
+            animation: slideIn 0.3s ease;
+            max-width: 400px;
+        }
+        
+        .notification.success { background: #48bb78; }
+        .notification.error { background: #f56565; }
+        .notification.info { background: #667eea; }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        #recordAudioBtn.recording {
+            background: #f56565;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>✂️ Advanced Video Editor</h1>
+        <a href="/" class="back-btn">← Back to Home</a>
+    </div>
+    
+    <div class="editor-container">
+        <!-- Left Sidebar - Tools -->
+        <div class="sidebar">
+            <div class="tool-section">
+                <h3>🎬 Video Operations</h3>
+                <button class="btn" onclick="showCutModal()">✂️ Cut Clip</button>
+                <button class="btn" onclick="splitAtPlayhead()">📏 Split at Playhead</button>
+                <button class="btn" onclick="showMergeModal()">🔗 Merge Selected</button>
+                <button class="btn" onclick="toggleSelectAll()">☑️ Select All/None</button>
+                <button class="btn danger" onclick="deleteSelectedClip()">🗑️ Delete Clip</button>
+                <button class="btn warning" onclick="restoreOriginalVideo()">↩️ Restore Original</button>
+            </div>
+            
+            <div class="tool-section">
+                <h3>🎙️ Audio Control</h3>
+                <button class="btn" id="recordAudioBtn" onclick="toggleAudioRecording()">⏺️ Record Audio</button>
+                <button class="btn" onclick="replaceAudio()">🔊 Replace Audio</button>
+                <button class="btn" onclick="showAudioSyncModal()">⏱️ Sync Audio</button>
+                <button class="btn" onclick="muteAudio()">🔇 Mute/Unmute</button>
+            </div>
+            
+            <div class="tool-section">
+                <h3>🤖 AI Features</h3>
+                <button class="btn success" onclick="generateGuide()">📝 Generate Guide</button>
+                <button class="btn success" onclick="addNarration()">🎙️ Add Narration</button>
+                <button class="btn" onclick="openTranscriptEditor()">✏️ Edit Transcript</button>
+                <button class="btn" onclick="viewTranscript()">📄 View Transcript</button>
+            </div>
+            
+            <div class="tool-section">
+                <h3>💾 Export</h3>
+                <button class="btn warning" onclick="exportVideo()">📥 Export Final Video</button>
+                <button class="btn" onclick="saveProject()">💾 Save Project</button>
+            </div>
+        </div>
+        
+        <!-- Center - Video Preview -->
+        <div class="video-preview">
+            <video id="mainVideo" controls>
+                <source src="/api/serve_video/{{ video_rel_path }}" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+            <div class="video-controls">
+                <button class="btn small" onclick="skipBackward()">⏪ -5s</button>
+                <button class="btn small" onclick="togglePlayPause()">⏯️ Play/Pause</button>
+                <button class="btn small" onclick="skipForward()">⏩ +5s</button>
+                <button class="btn small" onclick="setSpeed(0.5)">0.5x</button>
+                <button class="btn small" onclick="setSpeed(1.0)">1.0x</button>
+                <button class="btn small" onclick="setSpeed(1.5)">1.5x</button>
+                <button class="btn small" onclick="setSpeed(2.0)">2.0x</button>
+            </div>
+        </div>
+        
+        <!-- Right Sidebar - Properties -->
+        <div class="properties-panel">
+            <h3 style="color: #667eea; margin-bottom: 20px;">⚙️ Properties</h3>
+            
+            <div class="property-group">
+                <label>Select Video</label>
+                <select id="videoSelector" onchange="switchVideo(this.value)" style="width: 100%; padding: 10px; background: white; border: 1px solid #ccc; border-radius: 4px; color: #333; font-size: 14px;">
+                    <option value="{{ video_path }}">Original Video</option>
+                </select>
+            </div>
+            
+            <div class="property-group">
+                <label>Video Path</label>
+                <input type="text" id="videoPath" value="{{ video_path }}" readonly>
+            </div>
+            
+            <div class="property-group">
+                <label>Current Time</label>
+                <input type="text" id="currentTime" value="00:00:00" readonly>
+            </div>
+            
+            <div class="property-group">
+                <label>Duration</label>
+                <input type="text" id="duration" value="00:00:00" readonly>
+            </div>
+            
+            <div class="property-group">
+                <label>Resolution</label>
+                <input type="text" id="resolution" value="Loading..." readonly>
+            </div>
+            
+            <div class="property-group">
+                <label>FPS</label>
+                <input type="text" id="fps" value="Loading..." readonly>
+            </div>
+            
+            <div class="property-group">
+                <label>Selected Clip</label>
+                <input type="text" id="selectedClip" value="None" readonly>
+            </div>
+            
+            <div class="property-group">
+                <label>Clip Start</label>
+                <input type="number" id="clipStart" step="0.1" placeholder="0.0">
+            </div>
+            
+            <div class="property-group">
+                <label>Clip End</label>
+                <input type="number" id="clipEnd" step="0.1" placeholder="0.0">
+            </div>
+            
+            <button class="btn small" onclick="applyClipTiming()">Apply Timing</button>
+        </div>
+        
+        <!-- Timeline at Bottom -->
+        <div class="timeline">
+            <div class="timeline-ruler" id="timelineRuler">
+                <div class="timeline-marker" id="playhead" style="left: 0px;"></div>
+                <span style="font-size: 11px; color: #999;">Timeline</span>
+            </div>
+            <div class="timeline-tracks">
+                <div class="track">
+                    <div class="track-label">Video Track</div>
+                    <div id="videoTrack">
+                        <div class="clip" data-start="0" data-end="{{ duration }}" data-path="{{ video_path }}" onclick="selectClip(this)">
+                            <input type="checkbox" onclick="event.stopPropagation();">
+                            <span>Main Clip</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="track">
+                    <div class="track-label">Audio Track</div>
+                    <div id="audioTrack">
+                        <div class="clip" data-start="0" data-end="{{ duration }}" onclick="selectClip(this)">
+                            <span>Original Audio</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="status-bar">
+        <span id="statusText">Ready</span>
+        <span id="videoInfo">{{ has_transcript and '✓ Transcript' or '' }} {{ has_narrated and '✓ Narrated' or '' }}</span>
+    </div>
+    
+    <!-- Cut Modal -->
+    <div class="modal" id="cutModal">
+        <div class="modal-content">
+            <h3>✂️ Cut Video Clip</h3>
+            <div class="form-group">
+                <label>Start Time (seconds)</label>
+                <input type="number" id="cutStart" step="0.1" value="0">
+            </div>
+            <div class="form-group">
+                <label>End Time (seconds)</label>
+                <input type="number" id="cutEnd" step="0.1">
+            </div>
+            <button class="btn" onclick="executeCut()">Cut</button>
+            <button class="btn" onclick="closeModal('cutModal')">Cancel</button>
+        </div>
+    </div>
+    
+    <!-- Audio Sync Modal -->
+    <div class="modal" id="audioSyncModal">
+        <div class="modal-content">
+            <h3>⏱️ Adjust Audio Sync</h3>
+            <div class="form-group">
+                <label>Audio Offset (seconds, + or -)</label>
+                <input type="number" id="audioOffset" step="0.1" value="0">
+            </div>
+            <button class="btn" onclick="executeAudioSync()">Apply Sync</button>
+            <button class="btn" onclick="closeModal('audioSyncModal')">Cancel</button>
+        </div>
+    </div>
+    
+    <!-- Transcript Editor Modal -->
+    <div class="modal" id="transcriptModal">
+        <div class="modal-content" style="max-width: 800px;">
+            <h3>📝 Edit Transcript</h3>
+            <div class="form-group">
+                <label>Transcript Text (for narration)</label>
+                <textarea id="transcriptText" style="width: 100%; min-height: 300px; font-family: monospace; padding: 10px; border: 1px solid #ccc; border-radius: 4px;"></textarea>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn" onclick="saveTranscript()">💾 Save Transcript</button>
+                <button class="btn" onclick="loadTranscript()">🔄 Reload</button>
+                <button class="btn" onclick="closeModal('transcriptModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const videoPath = "{{ video_path }}";
+        const videoDir = "{{ video_dir }}";
+        let selectedClip = null;
+        let isRecording = false;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        
+        const video = document.getElementById('mainVideo');
+        
+        // Initialize
+        video.addEventListener('loadedmetadata', () => {
+            document.getElementById('duration').value = formatTime(video.duration);
+            loadVideoInfo();
+        });
+        
+        video.addEventListener('timeupdate', () => {
+            document.getElementById('currentTime').value = formatTime(video.currentTime);
+            updatePlayhead();
+        });
+        
+        // Load available videos on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadAvailableVideos();
+        });
+        
+        function loadAvailableVideos() {
+            // Check for common video files in the directory
+            const commonVideos = [
+                { name: 'Narrated Video', filename: 'narrated_video.mp4' },
+                { name: 'Merged Video', filename: 'merged_video.mp4' }
+            ];
+            
+            const selector = document.getElementById('videoSelector');
+            
+            commonVideos.forEach(videoInfo => {
+                const videoFullPath = videoDir + '/' + videoInfo.filename;
+                
+                // Try to check if video exists by attempting to load info
+                fetch('/api/get_video_info', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({video_path: videoFullPath})
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.success) {
+                        // Video exists, add to dropdown
+                        const existingOption = Array.from(selector.options).find(opt => opt.value === videoFullPath);
+                        if (!existingOption) {
+                            const option = document.createElement('option');
+                            option.value = videoFullPath;
+                            option.textContent = videoInfo.name;
+                            selector.appendChild(option);
+                        }
+                    }
+                })
+                .catch(err => console.log(`${videoInfo.name} not found`));
+            });
+        }
+        
+        function formatTime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+        }
+        
+        function loadVideoInfo() {
+            fetch('/api/get_video_info', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({video_path: videoPath})
+            })
+            .then(r => {
+                if (!r.ok) {
+                    console.warn('Video info endpoint not available (404)');
+                    return null;
+                }
+                return r.json();
+            })
+            .then(data => {
+                if (data && data.success) {
+                    document.getElementById('resolution').value = `${data.width}x${data.height}`;
+                    document.getElementById('fps').value = data.fps.toFixed(2);
+                }
+            })
+            .catch(err => console.warn('Could not load video info:', err));
+        }
+        
+        function showNotification(message, type = 'info') {
+            const notif = document.createElement('div');
+            notif.className = `notification ${type}`;
+            notif.textContent = message;
+            document.body.appendChild(notif);
+            setTimeout(() => notif.remove(), 3000);
+        }
+        
+        function showCutModal() {
+            document.getElementById('cutStart').value = video.currentTime;
+            document.getElementById('cutEnd').value = Math.min(video.currentTime + 10, video.duration);
+            document.getElementById('cutModal').style.display = 'flex';
+        }
+        
+        function showAudioSyncModal() {
+            document.getElementById('audioSyncModal').style.display = 'flex';
+        }
+        
+        function closeModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+        
+        function executeCut() {
+            const start = parseFloat(document.getElementById('cutStart').value);
+            const end = parseFloat(document.getElementById('cutEnd').value);
+            
+            showNotification('✂️ Cutting video...', 'info');
+            
+            fetch('/api/cut_video', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    video_path: videoPath,
+                    start_time: start,
+                    end_time: end,
+                    output_name: `cut_${Date.now()}.mp4`
+                })
+            })
+            .then(r => {
+                if (!r.ok) throw new Error(`Server error: ${r.status}`);
+                return r.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showNotification('✅ Video cut successfully!', 'success');
+                    closeModal('cutModal');
+                    
+                    // Add the cut clip to the timeline
+                    const duration = end - start;
+                    addClipToTimeline(data.output_path, `Cut (${formatTime(start)}-${formatTime(end)})`, duration);
+                } else {
+                    showNotification('❌ Error: ' + data.error, 'error');
+                }
+            })
+            .catch(err => {
+                console.error('Error cutting video:', err);
+                showNotification('❌ Error cutting video: ' + err.message, 'error');
+            });
+        }
+        
+        function executeAudioSync() {
+            const offset = parseFloat(document.getElementById('audioOffset').value);
+            
+            fetch('/api/adjust_audio_sync', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    video_path: videoPath,
+                    audio_offset: offset,
+                    output_name: `synced_${Date.now()}.mp4`
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('✅ Audio synced successfully!', 'success');
+                    closeModal('audioSyncModal');
+                } else {
+                    showNotification('❌ Error: ' + data.error, 'error');
+                }
+            });
+        }
+        
+        async function toggleAudioRecording() {
+            const btn = document.getElementById('recordAudioBtn');
+            
+            if (!isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    
+                    mediaRecorder.ondataavailable = (event) => {
+                        audioChunks.push(event.data);
+                    };
+                    
+                    mediaRecorder.onstop = () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        saveRecordedAudio(audioBlob);
+                    };
+                    
+                    mediaRecorder.start();
+                    isRecording = true;
+                    btn.classList.add('recording');
+                    btn.textContent = '⏹️ Stop Recording';
+                    showNotification('🎙️ Recording audio...', 'info');
+                } catch (error) {
+                    showNotification('❌ Microphone access denied', 'error');
+                }
+            } else {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                isRecording = false;
+                btn.classList.remove('recording');
+                btn.textContent = '⏺️ Record Audio';
+            }
+        }
+        
+        function saveRecordedAudio(blob) {
+            const formData = new FormData();
+            formData.append('audio', blob, 'recorded_audio.wav');
+            formData.append('video_dir', videoDir);
+            
+            fetch('/api/save_recorded_audio', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('✅ Audio saved! Use "Replace Audio" to apply.', 'success');
+                } else {
+                    showNotification('❌ Error saving audio: ' + data.error, 'error');
+                }
+            })
+            .catch(err => {
+                console.error('Error saving audio:', err);
+                showNotification('❌ Error saving audio: ' + err.message, 'error');
+            });
+        }
+        
+        let generateGuideButton = null;
+        let retryTimer = null;
+        
+        function generateGuide() {
+            // Get the button element
+            if (!generateGuideButton) {
+                generateGuideButton = document.querySelector('button[onclick="generateGuide()"]');
+            }
+            
+            showNotification('🤖 Generating AI guide...', 'info');
+            
+            // Disable button during generation
+            if (generateGuideButton) {
+                generateGuideButton.disabled = true;
+                generateGuideButton.textContent = '⏳ Generating...';
+            }
+            
+            fetch('/api/generate_guide', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({output_dir: videoDir})
+            })
+            .then(r => {
+                if (r.status === 429) {
+                    // Rate limit hit - start countdown timer
+                    return r.json().then(data => {
+                        throw new Error('RATE_LIMIT:' + (data.error || 'Rate limit exceeded'));
+                    });
+                }
+                return r.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showNotification('✅ Guide generated! Transcript saved.', 'success');
+                    // Re-enable button
+                    if (generateGuideButton) {
+                        generateGuideButton.disabled = false;
+                        generateGuideButton.textContent = '📝 Generate Guide';
+                    }
+                } else {
+                    if (data.error_type === 'rate_limit' || data.error_type === 'cooldown') {
+                        const waitTime = data.wait_seconds || 60;
+                        throw new Error('RATE_LIMIT:' + data.error + ':' + waitTime);
+                    }
+                    showNotification('❌ Error: ' + data.error, 'error');
+                    // Re-enable button after error
+                    if (generateGuideButton) {
+                        generateGuideButton.disabled = false;
+                        generateGuideButton.textContent = '📝 Generate Guide';
+                    }
+                }
+            })
+            .catch(err => {
+                console.error('Error generating guide:', err);
+                
+                // Check if it's a rate limit error
+                if (err.message.startsWith('RATE_LIMIT:')) {
+                    const parts = err.message.split(':');
+                    const errorMsg = parts[1] || 'Rate limit exceeded';
+                    const waitTime = parseInt(parts[2]) || 60;
+                    showNotification('⏳ ' + errorMsg, 'warning');
+                    startRetryCountdown(waitTime); // Start countdown with server-provided wait time
+                } else {
+                    showNotification('❌ Error generating guide: ' + err.message, 'error');
+                    // Re-enable button
+                    if (generateGuideButton) {
+                        generateGuideButton.disabled = false;
+                        generateGuideButton.textContent = '📝 Generate Guide';
+                    }
+                }
+            });
+        }
+        
+        function startRetryCountdown(seconds) {
+            let remaining = seconds;
+            
+            // Clear any existing timer
+            if (retryTimer) {
+                clearInterval(retryTimer);
+            }
+            
+            // Update button with countdown
+            function updateButton() {
+                if (generateGuideButton) {
+                    generateGuideButton.disabled = true;
+                    generateGuideButton.textContent = `⏳ Retry in ${remaining}s`;
+                }
+            }
+            
+            updateButton();
+            
+            retryTimer = setInterval(() => {
+                remaining--;
+                
+                if (remaining <= 0) {
+                    clearInterval(retryTimer);
+                    retryTimer = null;
+                    if (generateGuideButton) {
+                        generateGuideButton.disabled = false;
+                        generateGuideButton.textContent = '📝 Generate Guide';
+                    }
+                    showNotification('✅ Ready to retry guide generation', 'success');
+                } else {
+                    updateButton();
+                }
+            }, 1000);
+        }
+        
+        function addNarration() {
+            showNotification('🎙️ Adding AI narration...', 'info');
+            fetch('/api/add_narration', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({output_dir: videoDir})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('✅ Narration added! File: narrated_video.mp4', 'success');
+                } else {
+                    showNotification('❌ Error: ' + data.error, 'error');
+                }
+            })
+            .catch(err => {
+                console.error('Error adding narration:', err);
+                showNotification('❌ Error adding narration: ' + err.message, 'error');
+            });
+        }
+        
+        function viewTranscript() {
+            fetch(`/api/get_transcript?output_dir=${encodeURIComponent(videoDir)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.transcript);
+                    } else {
+                        showNotification('❌ ' + data.error, 'error');
+                    }
+                });
+        }
+        
+        function openTranscriptEditor() {
+            document.getElementById('transcriptModal').style.display = 'flex';
+            loadTranscript();
+        }
+        
+        function loadTranscript() {
+            fetch(`/api/get_transcript?output_dir=${encodeURIComponent(videoDir)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('transcriptText').value = data.transcript;
+                    } else {
+                        document.getElementById('transcriptText').value = '';
+                        console.log('No existing transcript found');
+                    }
+                })
+                .catch(err => {
+                    console.error('Error loading transcript:', err);
+                    document.getElementById('transcriptText').value = '';
+                });
+        }
+        
+        function saveTranscript() {
+            const transcript = document.getElementById('transcriptText').value;
+            
+            if (!transcript.trim()) {
+                showNotification('⚠️ Transcript is empty', 'error');
+                return;
+            }
+            
+            showNotification('💾 Saving transcript...', 'info');
+            
+            fetch('/api/save_transcript', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    output_dir: videoDir,
+                    transcript: transcript
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('✅ Transcript saved!', 'success');
+                    closeModal('transcriptModal');
+                } else {
+                    showNotification('❌ Error: ' + data.error, 'error');
+                }
+            })
+            .catch(err => {
+                console.error('Error saving transcript:', err);
+                showNotification('❌ Error saving transcript: ' + err.message, 'error');
+            });
+        }
+        
+        function togglePlayPause() {
+            if (video.paused) video.play();
+            else video.pause();
+        }
+        
+        function switchVideo(videoPath) {
+            if (!videoPath) return;
+            showNotification('📹 Loading video...', 'info');
+            loadVideo(videoPath);
+        }
+        
+        function loadVideo(path) {
+            const videoSrc = '/api/serve_video/' + encodeURIComponent(path.replace(/\\/g, '/'));
+            video.src = videoSrc;
+            video.load();
+            
+            // Update video path display
+            document.getElementById('videoPath').value = path;
+            
+            // Update video info
+            video.onloadedmetadata = function() {
+                loadVideoInfo();
+                showNotification('✅ Video loaded', 'success');
+            };
+        }
+        
+        function skipBackward() {
+            video.currentTime = Math.max(0, video.currentTime - 5);
+        }
+        
+        function skipForward() {
+            video.currentTime = Math.min(video.duration, video.currentTime + 5);
+        }
+        
+        function setSpeed(speed) {
+            video.playbackRate = speed;
+            showNotification(`⏩ Playback speed: ${speed}x`, 'info');
+        }
+        
+        function selectClip(element) {
+            document.querySelectorAll('.clip').forEach(c => c.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedClip = element;
+            document.getElementById('selectedClip').value = element.textContent.trim();
+            document.getElementById('clipStart').value = element.dataset.start;
+            document.getElementById('clipEnd').value = element.dataset.end;
+        }
+        
+        function updatePlayhead() {
+            const percent = (video.currentTime / video.duration) * 100;
+            document.getElementById('playhead').style.left = percent + '%';
+        }
+        
+        function splitAtPlayhead() {
+            if (!video.currentTime || video.currentTime === 0 || video.currentTime >= video.duration) {
+                showNotification('⚠️ Move playhead to a valid position first', 'error');
+                return;
+            }
+            
+            const splitTime = video.currentTime;
+            
+            showNotification('📏 Splitting video at playhead...', 'info');
+            
+            // Create two clips: 0 to splitTime, and splitTime to end
+            Promise.all([
+                fetch('/api/cut_video', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        video_path: videoPath,
+                        start_time: 0,
+                        end_time: splitTime,
+                        output_name: `split_part1_${Date.now()}.mp4`
+                    })
+                }).then(r => {
+                    if (!r.ok) throw new Error(`Server error: ${r.status}`);
+                    return r.json();
+                }),
+                fetch('/api/cut_video', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        video_path: videoPath,
+                        start_time: splitTime,
+                        end_time: video.duration,
+                        output_name: `split_part2_${Date.now()}.mp4`
+                    })
+                }).then(r => {
+                    if (!r.ok) throw new Error(`Server error: ${r.status}`);
+                    return r.json();
+                })
+            ])
+            .then(results => {
+                if (results[0].success && results[1].success) {
+                    showNotification('✅ Video split successfully!', 'success');
+                    
+                    // Add both clips to timeline
+                    addClipToTimeline(results[0].output_path, `Part 1 (0-${formatTime(splitTime)})`, splitTime);
+                    addClipToTimeline(results[1].output_path, `Part 2 (${formatTime(splitTime)}-${formatTime(video.duration)})`, video.duration - splitTime);
+                } else {
+                    showNotification('❌ Error splitting video', 'error');
+                }
+            })
+            .catch(err => {
+                console.error('Error splitting video:', err);
+                showNotification('❌ Error splitting video: ' + err.message, 'error');
+            });
+        }
+        
+        function addClipToTimeline(clipPath, clipName, duration) {
+            const videoTrack = document.getElementById('videoTrack');
+            
+            const clipDiv = document.createElement('div');
+            clipDiv.className = 'clip';
+            clipDiv.dataset.start = 0;
+            clipDiv.dataset.end = duration;
+            clipDiv.dataset.path = clipPath;
+            
+            // Add checkbox
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.onclick = function(e) { e.stopPropagation(); };
+            clipDiv.appendChild(checkbox);
+            
+            // Add label text
+            const label = document.createElement('span');
+            label.textContent = clipName;
+            clipDiv.appendChild(label);
+            
+            clipDiv.onclick = function(e) { 
+                if (e.target !== checkbox) {
+                    selectClip(this); 
+                }
+            };
+            
+            // Make clip draggable (basic implementation)
+            clipDiv.draggable = true;
+            clipDiv.ondragstart = function(e) {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', clipPath);
+            };
+            
+            videoTrack.appendChild(clipDiv);
+            
+            // Add video to selector if it's not already there
+            const selector = document.getElementById('videoSelector');
+            const existingOption = Array.from(selector.options).find(opt => opt.value === clipPath);
+            if (!existingOption) {
+                const option = document.createElement('option');
+                option.value = clipPath;
+                option.textContent = clipName;
+                selector.appendChild(option);
+            }
+        }
+        
+        function showMergeModal() {
+            const clips = document.querySelectorAll('#videoTrack .clip');
+            
+            // Get only checked clips
+            const checkedClips = Array.from(clips).filter(clip => {
+                const checkbox = clip.querySelector('input[type="checkbox"]');
+                return checkbox && checkbox.checked;
+            });
+            
+            if (checkedClips.length < 2) {
+                showNotification('⚠️ Select at least 2 clips to merge (use checkboxes)', 'error');
+                return;
+            }
+            
+            // Get paths of checked clips
+            const clipPaths = checkedClips.map(clip => clip.dataset.path).filter(path => path);
+            
+            if (clipPaths.length < 2) {
+                showNotification('⚠️ Selected clips missing paths', 'error');
+                return;
+            }
+            
+            if (confirm(`Merge ${clipPaths.length} clips into one video?`)) {
+                showNotification('🔗 Merging clips...', 'info');
+                
+                fetch('/api/merge_videos', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        video_paths: clipPaths,
+                        output_name: `merged_${Date.now()}.mp4`
+                    })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification('✅ Clips merged successfully!', 'success');
+                        
+                        // Clear timeline and add merged clip
+                        document.getElementById('videoTrack').innerHTML = '';
+                        addClipToTimeline(data.output_path, 'Merged Video', data.duration || video.duration);
+                    } else {
+                        showNotification('❌ Error: ' + data.error, 'error');
+                    }
+                })
+                .catch(err => {
+                    console.error('Error merging videos:', err);
+                    showNotification('❌ Error merging videos: ' + err.message, 'error');
+                });
+            }
+        }
+        
+        function deleteSelectedClip() {
+            if (!selectedClip) {
+                showNotification('⚠️ No clip selected', 'error');
+                return;
+            }
+            
+            if (confirm('Delete selected clip?')) {
+                selectedClip.remove();
+                selectedClip = null;
+                showNotification('🗑️ Clip deleted', 'success');
+            }
+        }
+        
+        function toggleSelectAll() {
+            const checkboxes = document.querySelectorAll('#videoTrack .clip input[type="checkbox"]');
+            
+            // Check if any are unchecked
+            const anyUnchecked = Array.from(checkboxes).some(cb => !cb.checked);
+            
+            // If any unchecked, check all. Otherwise uncheck all.
+            checkboxes.forEach(cb => cb.checked = anyUnchecked);
+            
+            showNotification(anyUnchecked ? '☑️ All clips selected' : '☐ All clips deselected', 'info');
+        }
+        
+        function muteAudio() {
+            video.muted = !video.muted;
+            showNotification(video.muted ? '🔇 Audio muted' : '🔊 Audio unmuted', 'success');
+        }
+        
+        async function replaceAudio() {
+            // Create file input for audio selection
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'audio/*,.mp3,.wav,.m4a,.aac';
+            
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                showNotification('🔊 Replacing audio...', 'info');
+                
+                try {
+                    const formData = new FormData();
+                    formData.append('audio', file);
+                    formData.append('video_path', videoPath);
+                    
+                    const response = await fetch('/api/replace_audio', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    if (data.success) {
+                        showNotification('✅ Audio replaced!', 'success');
+                        // Update the videoPath to the new file so subsequent operations use it
+                        videoPath = data.output_path;
+                        // Reload video with new audio
+                        loadVideo(data.output_path);
+                        addClipToTimeline(data.output_path, 'Video with New Audio');
+                    } else {
+                        showNotification('⚠️ Error: ' + data.error, 'error');
+                    }
+                } catch (err) {
+                    showNotification('⚠️ Error replacing audio: ' + err.message, 'error');
+                }
+            };
+            
+            input.click();
+        }
+        
+        async function restoreOriginalVideo() {
+            if (!confirm('Restore the original video? This will clear your timeline.')) return;
+            
+            showNotification('↩️ Restoring original video...', 'info');
+            
+            // Get original video path from URL parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const originalPath = urlParams.get('path');
+            
+            if (originalPath) {
+                loadVideo(originalPath);
+                clearTimeline();
+                showNotification('✅ Original video restored!', 'success');
+            } else {
+                showNotification('⚠️ Could not find original video path', 'error');
+            }
+        }
+        
+        function clearTimeline() {
+            const videoTrack = document.getElementById('videoTrack');
+            if (videoTrack) {
+                // Keep only the main clip
+                const clips = Array.from(videoTrack.querySelectorAll('.clip'));
+                clips.forEach((clip, index) => {
+                    if (index > 0) clip.remove(); // Keep first clip (main clip)
+                });
+            }
+        }
+        
+        function exportVideo() {
+            showNotification('💾 Exporting final video...', 'info');
+            // Export logic here
+        }
+        
+        function saveProject() {
+            showNotification('💾 Project saved!', 'success');
+        }
+        
+        // Transcript Editor Functions
+        function openTranscriptEditor() {
+            document.getElementById('transcriptModal').style.display = 'flex';
+            loadTranscript();
+        }
+        
+        function loadTranscript() {
+            fetch(`/api/get_transcript?output_dir=${encodeURIComponent(videoDir)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('transcriptText').value = data.transcript;
+                    } else {
+                        document.getElementById('transcriptText').value = '';
+                        document.getElementById('transcriptText').placeholder = 'No transcript found. Enter your transcript here...';
+                    }
+                })
+                .catch(err => {
+                    console.error('Error loading transcript:', err);
+                    document.getElementById('transcriptText').value = '';
+                    document.getElementById('transcriptText').placeholder = 'Error loading transcript. Enter your transcript here...';
+                });
+        }
+        
+        function saveTranscript() {
+            const transcript = document.getElementById('transcriptText').value.trim();
+            if (!transcript) {
+                showNotification('❌ Transcript cannot be empty', 'error');
+                return;
+            }
+            
+            showNotification('💾 Saving transcript...', 'info');
+            fetch('/api/save_transcript', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    output_dir: videoDir,
+                    transcript: transcript
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('✅ Transcript saved!', 'success');
+                    closeModal('transcriptModal');
+                } else {
+                    showNotification('❌ Error: ' + data.error, 'error');
+                }
+            })
+            .catch(err => {
+                console.error('Error saving transcript:', err);
+                showNotification('❌ Error saving transcript: ' + err.message, 'error');
+            });
+        }
+    </script>
+</body>
+</html>

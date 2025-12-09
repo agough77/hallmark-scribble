@@ -1,0 +1,11 @@
+Flask
+flask-cors
+pynput
+pyautogui
+Pillow
+google-generativeai
+python-dotenv
+keyboard
+pywin32
+edge-tts
+pyinstaller
