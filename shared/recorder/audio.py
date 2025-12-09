@@ -57,7 +57,9 @@ def start_audio_recording(output="assets/audio.wav"):
     
     ffmpeg_cmd = get_ffmpeg_path()
     command = [ffmpeg_cmd, "-y", "-f", "dshow", "-i", f"audio={selected_audio_device}", output]
-    audio_process = subprocess.Popen(command, stdin=subprocess.PIPE)
+    # Hide console window on Windows
+    creation_flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+    audio_process = subprocess.Popen(command, stdin=subprocess.PIPE, creationflags=creation_flags)
 
 def stop_audio_recording():
     global audio_process

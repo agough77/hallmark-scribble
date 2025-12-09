@@ -735,6 +735,17 @@
                                 console.error('Window selection cancelled:', error);
                                 resolve(null);
                             }
+                        } else if (mode === 'fullscreen') {
+                            // Show monitor picker for fullscreen
+                            try {
+                                const monitorRegion = await showMonitorPicker();
+                                console.log('Monitor picker returned:', monitorRegion);
+                                resolve({ mode: 'fullscreen', region: monitorRegion });
+                            } catch (error) {
+                                console.error('Monitor selection cancelled or single monitor:', error);
+                                // If cancelled or only one monitor, use default (all monitors)
+                                resolve({ mode: mode, region: null });
+                            }
                         } else {
                             resolve({ mode: mode, region: null });
                         }
@@ -834,6 +845,102 @@
                 } catch (error) {
                     console.error('Error getting windows:', error);
                     alert('Failed to get window list');
+                    reject(error);
+                }
+            });
+        }
+        
+        async function showMonitorPicker() {
+            return new Promise(async (resolve, reject) => {
+                try {
+                    // Get list of monitors from backend
+                    const response = await fetch('/api/get_monitors');
+                    const data = await response.json();
+                    
+                    if (!data.success || !data.monitors || data.monitors.length === 0) {
+                        reject(new Error('No monitors available'));
+                        return;
+                    }
+                    
+                    // If only one monitor, don't show picker - just use default
+                    if (data.monitors.length === 1) {
+                        reject(new Error('Single monitor - use default'));
+                        return;
+                    }
+                    
+                    // Create modal for monitor selection
+                    const modal = document.createElement('div');
+                    modal.style.cssText = `
+                        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                        background: rgba(0,0,0,0.5); display: flex; align-items: center;
+                        justify-content: center; z-index: 10000;
+                    `;
+                    
+                    const dialog = document.createElement('div');
+                    dialog.style.cssText = `
+                        background: white; padding: 30px; border-radius: 10px;
+                        box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-width: 500px;
+                    `;
+                    
+                    let monitorsHtml = '<h3 style="margin: 0 0 20px 0; color: #333;">Select Monitor to Capture</h3>';
+                    monitorsHtml += '<div class="monitor-list">';
+                    
+                    data.monitors.forEach((mon, index) => {
+                        const primaryBadge = mon.is_primary ? ' <span style="background: #4CAF50; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;">PRIMARY</span>' : '';
+                        monitorsHtml += `
+                            <button class="monitor-btn" data-index="${index}" style="
+                                display: block; width: 100%; padding: 12px; margin: 8px 0;
+                                text-align: left; border: 2px solid #ddd; border-radius: 5px;
+                                background: white; cursor: pointer; transition: all 0.2s;
+                            ">
+                                <strong style="display: block; color: #333; margin-bottom: 5px;">${mon.name}${primaryBadge}</strong>
+                                <small style="color: #666;">${mon.width} × ${mon.height} at (${mon.left}, ${mon.top})</small>
+                            </button>
+                        `;
+                    });
+                    
+                    monitorsHtml += '</div>';
+                    monitorsHtml += `<button id="cancel-monitor-btn" style="
+                        display: block; width: 100%; padding: 10px; margin: 20px 0 0 0;
+                        border: 1px solid #ccc; border-radius: 5px; background: #f5f5f5;
+                        cursor: pointer;
+                    ">Cancel</button>`;
+                    
+                    dialog.innerHTML = monitorsHtml;
+                    modal.appendChild(dialog);
+                    document.body.appendChild(modal);
+                    
+                    // Add hover effects and click handlers
+                    dialog.querySelectorAll('.monitor-btn').forEach(btn => {
+                        btn.addEventListener('mouseenter', () => {
+                            btn.style.background = '#e3f2fd';
+                            btn.style.borderColor = '#2196F3';
+                        });
+                        btn.addEventListener('mouseleave', () => {
+                            btn.style.background = 'white';
+                            btn.style.borderColor = '#ddd';
+                        });
+                        btn.addEventListener('click', () => {
+                            const index = parseInt(btn.dataset.index);
+                            const selectedMonitor = data.monitors[index];
+                            console.log('Selected monitor:', selectedMonitor);
+                            document.body.removeChild(modal);
+                            resolve({
+                                left: selectedMonitor.left,
+                                top: selectedMonitor.top,
+                                width: selectedMonitor.width,
+                                height: selectedMonitor.height
+                            });
+                        });
+                    });
+                    
+                    dialog.querySelector('#cancel-monitor-btn').addEventListener('click', () => {
+                        document.body.removeChild(modal);
+                        reject(new Error('Monitor selection cancelled'));
+                    });
+                    
+                } catch (error) {
+                    console.error('Error getting monitors:', error);
                     reject(error);
                 }
             });
@@ -1360,15 +1467,30 @@
                         data.recordings.forEach((rec, idx) => {
                             const li = document.createElement('li');
                             li.className = 'recording-item';
-                            li.innerHTML = `
-                                <label style="display: flex; align-items: center; width: 100%; cursor: pointer;">
-                                    <input type="checkbox" class="recording-checkbox" data-path="${rec.path}" onchange="toggleRecordingSelection('${rec.path}', this.checked)" style="margin-right: 10px;">
-                                    <div class="recording-info" style="flex: 1;">
-                                        <h4>${rec.date} / ${rec.name}</h4>
-                                        <p>${rec.file_count} files - ${rec.path}</p>
-                                    </div>
-                                </label>
+                            
+                            const label = document.createElement('label');
+                            label.style.cssText = 'display: flex; align-items: center; width: 100%; cursor: pointer;';
+                            
+                            const checkbox = document.createElement('input');
+                            checkbox.type = 'checkbox';
+                            checkbox.className = 'recording-checkbox';
+                            checkbox.dataset.path = rec.path;
+                            checkbox.style.marginRight = '10px';
+                            checkbox.addEventListener('change', function() {
+                                toggleRecordingSelection(rec.path, this.checked);
+                            });
+                            
+                            const infoDiv = document.createElement('div');
+                            infoDiv.className = 'recording-info';
+                            infoDiv.style.flex = '1';
+                            infoDiv.innerHTML = `
+                                <h4>${rec.date} / ${rec.name}</h4>
+                                <p>${rec.file_count} files - ${rec.path}</p>
                             `;
+                            
+                            label.appendChild(checkbox);
+                            label.appendChild(infoDiv);
+                            li.appendChild(label);
                             list.appendChild(li);
                         });
                         

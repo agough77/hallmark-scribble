@@ -282,6 +282,54 @@ def get_windows():
             'error': str(e)
         })
 
+@app.route('/api/get_monitors', methods=['GET'])
+def get_monitors():
+    """Get list of available monitors for selection"""
+    try:
+        import win32api
+        import win32con
+        
+        monitors = []
+        monitor_info = win32api.EnumDisplayMonitors()
+        
+        for i, (hMonitor, hdcMonitor, rect) in enumerate(monitor_info):
+            left, top, right, bottom = rect
+            width = right - left
+            height = bottom - top
+            
+            # Get monitor info for name if possible
+            try:
+                info = win32api.GetMonitorInfo(hMonitor)
+                device = info.get('Device', f'Monitor {i + 1}')
+                is_primary = info.get('Flags', 0) & win32con.MONITORINFOF_PRIMARY
+            except:
+                device = f'Monitor {i + 1}'
+                is_primary = (i == 0)
+            
+            monitors.append({
+                'id': i,
+                'name': device,
+                'is_primary': bool(is_primary),
+                'left': left,
+                'top': top,
+                'width': width,
+                'height': height,
+                'right': right,
+                'bottom': bottom
+            })
+        
+        return jsonify({
+            'success': True,
+            'monitors': monitors
+        })
+        
+    except Exception as e:
+        logging.error(f"Error getting monitors: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
 @app.route('/api/show_screen_picker', methods=['POST'])
 def show_screen_picker():
     """
@@ -502,9 +550,19 @@ def start_recording():
                                 window_region['height']
                             ))
                         logging.info(f"Window capture size: {screenshot.size}")
+                    elif capture_mode == 'fullscreen' and window_region:
+                        # Capture specific monitor (fullscreen on one monitor)
+                        logging.info(f"Capturing specific monitor: {window_region}")
+                        screenshot = pyautogui.screenshot(region=(
+                            window_region['left'],
+                            window_region['top'],
+                            window_region['width'],
+                            window_region['height']
+                        ))
+                        logging.info(f"Monitor capture size: {screenshot.size}")
                     else:
-                        # Full screen capture
-                        logging.info("Capturing full screen")
+                        # Full screen capture (all monitors)
+                        logging.info("Capturing full screen (all monitors)")
                         screenshot = pyautogui.screenshot()
                     
                     screenshot.save(filepath)
@@ -659,6 +717,15 @@ def start_recording():
                     logging.warning(f"Could not bring window to front for video: {e}")
                 
                 # Set region for screen recorder
+                screen_recorder.set_region(
+                    window_region['left'],
+                    window_region['top'],
+                    window_region['width'],
+                    window_region['height']
+                )
+            elif capture_mode == 'fullscreen' and window_region:
+                # Handle monitor-specific fullscreen capture
+                logging.info(f"Fullscreen capture on specific monitor: {window_region}")
                 screen_recorder.set_region(
                     window_region['left'],
                     window_region['top'],

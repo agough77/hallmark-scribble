@@ -35,9 +35,18 @@ def start_screen_recording(output="assets/recording.mp4", full_screen=True):
     logging.info(f"Full screen: {full_screen}")
     
     if full_screen:
-        # Capture entire virtual desktop (all monitors)
-        command = [ffmpeg_cmd, "-y", "-f", "gdigrab", "-framerate", "30", "-draw_mouse", "1", "-i", "desktop", "-pix_fmt", "yuv420p", output]
-        logging.info(f"FFmpeg command (full screen): {' '.join(command)}")
+        if region:
+            # Capture specific monitor by using crop filter on virtual desktop
+            x, y, w, h = region
+            logging.info(f"Monitor region: x={x}, y={y}, w={w}, h={h}")
+            crop_filter = f"crop={w}:{h}:{x}:{y}"
+            command = [ffmpeg_cmd, "-y", "-f", "gdigrab", "-framerate", "30", "-draw_mouse", "1", "-i", "desktop",
+                       "-vf", crop_filter, "-pix_fmt", "yuv420p", output]
+            logging.info(f"FFmpeg command (specific monitor): {' '.join(command)}")
+        else:
+            # Capture entire virtual desktop (all monitors)
+            command = [ffmpeg_cmd, "-y", "-f", "gdigrab", "-framerate", "30", "-draw_mouse", "1", "-i", "desktop", "-pix_fmt", "yuv420p", output]
+            logging.info(f"FFmpeg command (all monitors): {' '.join(command)}")
     else:
         x, y, w, h = region
         logging.info(f"Window region: x={x}, y={y}, w={w}, h={h}")
