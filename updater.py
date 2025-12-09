@@ -15,11 +15,11 @@ import hashlib
 from datetime import datetime
 
 # Version info
-CURRENT_VERSION = "1.0.0"
+CURRENT_VERSION = "1.0.2"
 LOCAL_DEV_PATH = Path(r"C:\Users\AGough\Hallmark University\IT Services - Documents\Scripts + Tools\Hallmark Scribble")
-SHAREPOINT_FOLDER_URL = "https://hallmarku.sharepoint.com/:f:/s/IT/ErcIki8oqZVFgdCn94QpItQB1QTBCg6dYWQazMLPBlwtLw?e=Z2tjIp"
-# Convert SharePoint share link to direct download link for version.json
-SHAREPOINT_VERSION_URL = "https://hallmarku.sharepoint.com/sites/IT/Shared%20Documents/Hallmark%20Scribble/version.json?download=1"
+# GitHub repository for public version.json access (no authentication required)
+GITHUB_VERSION_URL = "https://raw.githubusercontent.com/agough77/hallmark-scribble/main/version.json"
+GITHUB_REPO_URL = "https://github.com/agough77/hallmark-scribble"
 
 class UpdaterGUI:
     def __init__(self, root):
@@ -99,20 +99,20 @@ class UpdaterGUI:
         self.root.update()
         
     def get_version_info(self):
-        """Get latest version info - Check SharePoint, local dev, or installed directory"""
+        """Get latest version info - Check GitHub, local dev, or installed directory"""
         try:
-            # Try to fetch from SharePoint first
+            # Try to fetch from GitHub first (public URL, no authentication)
             try:
-                self.log("Checking SharePoint for latest version...")
-                request = urllib.request.Request(SHAREPOINT_VERSION_URL)
+                self.log("Checking GitHub for latest version...")
+                request = urllib.request.Request(GITHUB_VERSION_URL)
                 request.add_header('User-Agent', 'HallmarkScribble/1.0')
                 with urllib.request.urlopen(request, timeout=10) as response:
                     version_data = json.loads(response.read().decode())
-                    version_data['source'] = 'sharepoint'
-                    self.log("Successfully fetched version info from SharePoint")
+                    version_data['source'] = 'github'
+                    self.log(f"Successfully fetched version {version_data.get('version')} from GitHub")
                     return version_data
-            except Exception as sp_error:
-                self.log(f"SharePoint fetch failed: {sp_error}")
+            except Exception as gh_error:
+                self.log(f"GitHub fetch failed: {gh_error}")
                 self.log("Falling back to local checks...")
             
             # Check local development folder (only on dev machine)
@@ -318,14 +318,14 @@ class UpdaterGUI:
                     messagebox.showerror("Update Failed", "Could not install the update")
                 return
             
-            # Download update from SharePoint
-            self.update_status("Downloading update from SharePoint...", 30)
+            # Download update from GitHub
+            self.update_status("Downloading update from GitHub...", 30)
             
             # For now, show message that manual download is needed
             messagebox.showinfo("Update Available",
                               f"Version {latest_version} is available!\n\n"
-                              f"Please download the latest installer from SharePoint:\n"
-                              f"{SHAREPOINT_FOLDER_URL}\n\n"
+                              f"Please download the latest installer from GitHub:\n"
+                              f"{GITHUB_REPO_URL}\n\n"
                               f"Run the installer as administrator to update.")
             self.update_status("Manual update required", 100)
             return
