@@ -41,6 +41,8 @@ python3.11.exe -m PyInstaller ^
     --hidden-import=pyautogui ^
     --hidden-import=keyboard ^
     --hidden-import=pynput ^
+    --hidden-import=pynput.mouse ^
+    --hidden-import=pynput.keyboard ^
     --hidden-import=google.generativeai ^
     --hidden-import=psutil ^
     --hidden-import=win32api ^
@@ -50,6 +52,7 @@ python3.11.exe -m PyInstaller ^
     --hidden-import=edge_tts ^
     --collect-all=flask ^
     --collect-all=flask_cors ^
+    --collect-all=pynput ^
     --noconfirm ^
     web_app.py
 
