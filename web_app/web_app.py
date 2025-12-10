@@ -79,7 +79,12 @@ def get_ffprobe_path():
     return ffprobe  # Return expected path even if not found
 
 # Add parent directory to path for shared modules
-sys.path.insert(0, get_shared_path())
+shared_path = get_shared_path()
+sys.path.insert(0, shared_path)
+# Also add parent directory so 'shared' can be imported as a module
+parent_path = os.path.dirname(shared_path)
+if parent_path not in sys.path:
+    sys.path.insert(0, parent_path)
 
 # Import shared modules
 from recorder import input_logger

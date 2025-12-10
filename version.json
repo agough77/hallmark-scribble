@@ -1,16 +1,12 @@
 {
-  "version": "1.0.5",
-  "release_date": "2025-12-09",
-  "download_url": "https://github.com/agough77/hallmark-scribble/releases/download/v1.0.5/HallmarkScribble_Installer.exe",
+  "version": "1.0.6",
+  "release_date": "2025-12-10",
+  "download_url": "https://github.com/agough77/hallmark-scribble/releases/download/v1.0.6/HallmarkScribble_Installer.exe",
   "changelog": [
-    "FIXED: Cleanup manager delete checkbox now properly deletes selected recordings",
-    "FIXED: FFMPEG console windows hidden during audio recording",
-    "FIXED: FFMPEG now captures full window size correctly",
-    "FIXED: Cross-monitor screenshots now work correctly",
-    "ADDED: Multi-monitor selection UI for fullscreen recording and screenshots",
-    "ADDED: Transparency/opacity slider in annotation editor (10-100% range for all drawing tools)",
-    "ADDED: Close button and ESC key support in annotation editor",
-    "IMPROVED: Monitor-specific capture using FFMPEG crop filter"
+    "FIXED: Module import errors in annotation editor",
+    "FIXED: Annotated screenshots now save and display correctly (cache-busting)",
+    "FIXED: Narrated videos now appear in dropdown immediately after creation",
+    "IMPROVED: Added debug logging for troubleshooting monitor picker and delete functions"
   ],
   "minimum_version": "1.0.0",
   "critical_update": false

@@ -907,6 +907,8 @@
             .then(data => {
                 if (data.success) {
                     showNotification('✅ Narration added! File: narrated_video.mp4', 'success');
+                    // Reload available videos to include the narrated video
+                    setTimeout(() => loadAvailableVideos(), 1000);
                 } else {
                     showNotification('❌ Error: ' + data.error, 'error');
                 }

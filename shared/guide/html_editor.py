@@ -15,19 +15,9 @@ def create_html_editor(scribble_dir):
     actions_path = os.path.join(scribble_dir, "actions.log")
     video_path = os.path.join(scribble_dir, "recording.mp4")
     notes_path = os.path.join(scribble_dir, "notes.json")
-    title_path = os.path.join(scribble_dir, "title.txt")
     
     # Check if this is video mode
     is_video_mode = os.path.exists(video_path)
-    
-    # Read title
-    guide_title = "How-To Guide"
-    if os.path.exists(title_path):
-        try:
-            with open(title_path, "r", encoding="utf-8") as f:
-                guide_title = f.read().strip()
-        except Exception as e:
-            logging.error(f"Error loading title: {e}")
     
     # Read transcript
     if os.path.exists(transcript_path):
@@ -577,15 +567,12 @@ def create_html_editor(scribble_dir):
                 <h1>📝 Hallmark Scribble - Guide Editor</h1>
                 <p class="subtitle">Edit your guide title, customize screenshot notes, and export to HTML or Markdown</p>
             </div>
-            <div style="display: flex; gap: 10px;">
-                <button id="generateGuideBtn" onclick="generateGuide()" style="padding: 12px 24px; background: #27ae60; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600;">🤖 Generate Guide</button>
-                <button onclick="window.location.href='/'" style="padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600;">⬅ Back to Home</button>
-            </div>
+            <button onclick="window.location.href='/'" style="padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600;">⬅ Back to Home</button>
         </div>
         
         <div class="section">
             <h2 class="section-title">📋 Guide Title</h2>
-            <input type="text" class="title-editor" id="titleEditor" placeholder="Enter your guide title..." value="{guide_title}">
+            <input type="text" class="title-editor" id="titleEditor" placeholder="Enter your guide title..." value="How-To Guide">
         </div>
         
 
@@ -753,7 +740,6 @@ def create_html_editor(scribble_dir):
         <div class="buttons">
             <button class="btn-primary" onclick="saveChanges()">💾 Save Changes</button>
             <button class="btn-success" onclick="exportHTML()">📄 Export HTML Guide</button>
-            <button class="btn-success" onclick="generateSOP()">📋 Generate SOP</button>
         </div>
     </div>
     
@@ -764,7 +750,8 @@ def create_html_editor(scribble_dir):
     <!-- Annotation Editor Modal -->
     <div class="modal" id="annotationModal">
         <div class="modal-content">
-<div class="annotation-toolbar">
+            <button class="close-modal" onclick="closeAnnotationEditor()" title="Close Editor (ESC)">✕</button>
+            <div class="annotation-toolbar">
                 <button class="tool-btn active" data-tool="pen" onclick="selectTool('pen')">🖊️ Pen</button>
                 <button class="tool-btn" data-tool="highlighter" onclick="selectTool('highlighter')">🖍️ Highlighter</button>
                 <button class="tool-btn" data-tool="arrow" onclick="selectTool('arrow')">➡️ Arrow</button>
@@ -775,10 +762,13 @@ def create_html_editor(scribble_dir):
                 <input type="color" id="colorPicker" class="color-picker" value="#ff0000" title="Pick color">
                 <label style="color: white; margin-left: 10px;">Size:</label>
                 <input type="range" id="sizeSlider" class="size-slider" min="1" max="20" value="3">
+                <label style="color: white; margin-left: 10px;">Opacity:</label>
+                <input type="range" id="opacitySlider" class="size-slider" min="10" max="100" value="100" title="Adjust transparency (100 = opaque, 10 = very transparent)">
                 <button class="tool-btn" onclick="undoAnnotation()">↶ Undo</button>
                 <button class="tool-btn" onclick="clearAnnotations()">🗑️ Clear All</button>
                 <button class="tool-btn" style="background: #e67e22;" onclick="restoreOriginal()">↻ Restore Original</button>
                 <button class="tool-btn" style="background: #27ae60;" onclick="saveAnnotatedImage()">💾 Save</button>
+                <button class="tool-btn" style="background: #e74c3c;" onclick="closeAnnotationEditor()">✕ Close</button>
             </div>
             <div class="canvas-container">
                 <canvas id="annotationCanvas"></canvas>
@@ -794,6 +784,7 @@ def create_html_editor(scribble_dir):
         let isDrawing = false;
         let currentColor = '#ff0000';
         let currentSize = 3;
+        let currentOpacity = 1.0; // Default full opacity
         let canvas, ctx, originalImage, originalImageSrc;
         let currentStepIndex = null;
         let annotations = [];
@@ -866,6 +857,19 @@ def create_html_editor(scribble_dir):
             document.getElementById('annotationModal').style.display = 'none';
         }}
         
+        // Add global escape key handler
+        document.addEventListener('keydown', (e) => {{
+            if (e.key === 'Escape') {{
+                const annotationModal = document.getElementById('annotationModal');
+                const imageModal = document.getElementById('imageModal');
+                if (annotationModal && annotationModal.style.display === 'flex') {{
+                    closeAnnotationEditor();
+                }} else if (imageModal && imageModal.style.display === 'flex') {{
+                    closeModal();
+                }}
+            }}
+        }});
+        
         function selectTool(tool) {{
             currentTool = tool;
             document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
@@ -875,6 +879,7 @@ def create_html_editor(scribble_dir):
         function setupCanvas() {{
             const colorPicker = document.getElementById('colorPicker');
             const sizeSlider = document.getElementById('sizeSlider');
+            const opacitySlider = document.getElementById('opacitySlider');
             
             colorPicker.addEventListener('change', (e) => {{
                 currentColor = e.target.value;
@@ -882,6 +887,10 @@ def create_html_editor(scribble_dir):
             
             sizeSlider.addEventListener('input', (e) => {{
                 currentSize = parseInt(e.target.value);
+            }});
+            
+            opacitySlider.addEventListener('input', (e) => {{
+                currentOpacity = parseInt(e.target.value) / 100; // Convert 10-100 to 0.1-1.0
             }});
             
             canvas.addEventListener('mousedown', handleMouseDown);
@@ -974,7 +983,7 @@ def create_html_editor(scribble_dir):
                 ctx.lineWidth = currentSize;
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
-                ctx.globalAlpha = 1;
+                ctx.globalAlpha = currentOpacity;
                 ctx.lineTo(x, y);
                 ctx.stroke();
             }} else if (currentTool === 'highlighter') {{
@@ -982,7 +991,8 @@ def create_html_editor(scribble_dir):
                 ctx.lineWidth = currentSize * 5;
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
-                ctx.globalAlpha = 0.3;
+                // Highlighter uses its own opacity or the user-set opacity (whichever is lower)
+                ctx.globalAlpha = Math.min(0.3, currentOpacity);
                 ctx.lineTo(x, y);
                 ctx.stroke();
             }} else if (currentTool === 'arrow' || currentTool === 'rectangle' || currentTool === 'circle') {{
@@ -992,7 +1002,7 @@ def create_html_editor(scribble_dir):
                 
                 ctx.strokeStyle = currentColor;
                 ctx.lineWidth = currentSize;
-                ctx.globalAlpha = 1;
+                ctx.globalAlpha = currentOpacity;
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
                 
@@ -1024,7 +1034,7 @@ def create_html_editor(scribble_dir):
                 // Draw the final shape
                 ctx.strokeStyle = currentColor;
                 ctx.lineWidth = currentSize;
-                ctx.globalAlpha = 1;
+                ctx.globalAlpha = currentOpacity;
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
                 
@@ -1049,7 +1059,8 @@ def create_html_editor(scribble_dir):
                     endX: x,
                     endY: y,
                     color: currentColor,
-                    size: currentSize
+                    size: currentSize,
+                    opacity: currentOpacity
                 }});
                 
                 // Update original image with the new annotation
@@ -1303,12 +1314,9 @@ def create_html_editor(scribble_dir):
             
             console.log('Saving annotated image, step:', currentStepIndex);
             
-            // Update the image in the step
+            // We'll update the image after save completes with a cache-busting URL
             const imgElement = document.getElementById(`img-${{currentStepIndex}}`);
-            if (imgElement) {{
-                imgElement.src = dataURL;
-                console.log('Updated image element');
-            }} else {{
+            if (!imgElement) {{
                 console.error('Image element not found for step:', currentStepIndex);
             }}
             
@@ -1363,6 +1371,20 @@ def create_html_editor(scribble_dir):
             .then(data => {{
                 console.log('Response data:', data);
                 if (data.success) {{
+                    // Update the image element with cache-busting URL to show saved version
+                    if (imgElement) {{
+                        // Get the original image URL and add cache-busting timestamp
+                        const originalSrc = imgElement.getAttribute('src');
+                        const timestamp = new Date().getTime();
+                        
+                        // Remove any existing cache-busting parameter
+                        const cleanSrc = originalSrc.split('?')[0];
+                        
+                        // Add new timestamp
+                        imgElement.src = cleanSrc + '?t=' + timestamp;
+                        console.log('Updated image element with cache-busting URL:', imgElement.src);
+                    }}
+                    
                     if (window.isCroppedImage) {{
                         showToast('✅ Cropped image saved as new file! Original preserved.', 'success', 4000);
                         window.isCroppedImage = false;
@@ -1727,157 +1749,6 @@ h1 {{ color: #333; }}
             a.click();
             
             showToast('📝 Markdown guide exported!');
-        }}
-        
-        async function generateSOP() {{
-            const title = document.getElementById('titleEditor').value || 'How-To Guide';
-            const screenshots = document.querySelectorAll('.screenshot-item');
-            
-            // Build the guide content
-            let guideContent = `Title: ${{title}}\\n\\n`;
-            
-            screenshots.forEach((item, i) => {{
-                const noteDiv = item.querySelector('.screenshot-note');
-                const note = noteDiv.innerText;
-                guideContent += `Step ${{i + 1}}: ${{note}}\\n\\n`;
-            }});
-            
-            if (screenshots.length === 0) {{
-                showToast('⚠️ No steps found to generate SOP', 'error');
-                return;
-            }}
-            
-            showToast('🤖 Generating SOP from guide...', 'info');
-            
-            try {{
-                const response = await fetch('/api/generate_sop', {{
-                    method: 'POST',
-                    headers: {{'Content-Type': 'application/json'}},
-                    body: JSON.stringify({{
-                        guide_content: guideContent,
-                        title: title,
-                        output_dir: '{scribble_dir_normalized}'
-                    }})
-                }});
-                
-                const data = await response.json();
-                if (data.success) {{
-                    showToast('✅ SOP generated! Downloading...', 'success');
-                    
-                    // Trigger download by fetching the file and creating a blob
-                    const sopResponse = await fetch(`/api/serve_sop/${{encodeURIComponent(data.sop_html_path)}}`);
-                    const sopBlob = await sopResponse.blob();
-                    const url = URL.createObjectURL(sopBlob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = data.filename || 'SOP.html';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                }} else {{
-                    showToast('⚠️ Error: ' + data.error, 'error');
-                }}
-            }} catch (err) {{
-                console.error('Error generating SOP:', err);
-                showToast('⚠️ Failed to generate SOP: ' + err.message, 'error');
-            }}
-        }}
-        
-        // Generate Guide with retry logic
-        let retryTimer = null;
-        
-        async function generateGuide() {{
-            const btn = document.getElementById('generateGuideBtn');
-            if (!btn) return;
-            
-            // Disable button
-            btn.disabled = true;
-            btn.textContent = '⏳ Generating...';
-            
-            showToast('🤖 Generating AI guide from screenshots...', 'info');
-            
-            try {{
-                const response = await fetch('/api/generate_guide', {{
-                    method: 'POST',
-                    headers: {{'Content-Type': 'application/json'}},
-                    body: JSON.stringify({{output_dir: '{scribble_dir_normalized}'}})
-                }});
-                
-                if (response.status === 429) {{
-                    // Rate limit hit
-                    const data = await response.json();
-                    throw new Error('RATE_LIMIT:' + (data.error || 'Rate limit exceeded'));
-                }}
-                
-                const data = await response.json();
-                
-                if (data.success) {{
-                    showToast('✅ Guide generated! Reloading page...', 'success');
-                    // Reload page to show new content
-                    setTimeout(() => location.reload(), 1000);
-                }} else {{
-                    if (data.error_type === 'rate_limit' || data.error_type === 'cooldown') {{
-                        const waitTime = data.wait_seconds || 60;
-                        throw new Error('RATE_LIMIT:' + data.error + ':' + waitTime);
-                    }}
-                    showToast('❌ Error: ' + data.error, 'error');
-                    btn.disabled = false;
-                    btn.textContent = '🤖 Generate Guide';
-                }}
-            }} catch (err) {{
-                console.error('Generate guide error:', err);
-                
-                // Check if it's a rate limit error
-                if (err.message.startsWith('RATE_LIMIT:')) {{
-                    const parts = err.message.split(':');
-                    const errorMsg = parts[1] || 'Rate limit exceeded';
-                    const waitTime = parseInt(parts[2]) || 60;
-                    showToast('⏳ ' + errorMsg, 'warning');
-                    startRetryCountdown(waitTime); // Start countdown with server-provided wait time
-                }} else {{
-                    showToast('❌ Error generating guide: ' + err.message, 'error');
-                    btn.disabled = false;
-                    btn.textContent = '🤖 Generate Guide';
-                }}
-            }}
-        }}
-        
-        function startRetryCountdown(seconds) {{
-            let remaining = seconds;
-            const btn = document.getElementById('generateGuideBtn');
-            if (!btn) return;
-            
-            // Clear any existing timer
-            if (retryTimer) {{
-                clearInterval(retryTimer);
-            }}
-            
-            // Update button with countdown
-            function updateButton() {{
-                if (btn) {{
-                    btn.disabled = true;
-                    btn.textContent = `⏳ Retry in ${{remaining}}s`;
-                }}
-            }}
-            
-            updateButton();
-            
-            retryTimer = setInterval(() => {{
-                remaining--;
-                
-                if (remaining <= 0) {{
-                    clearInterval(retryTimer);
-                    retryTimer = null;
-                    if (btn) {{
-                        btn.disabled = false;
-                        btn.textContent = '🤖 Generate Guide (AI)';
-                    }}
-                    showToast('✅ Ready to retry guide generation', 'success');
-                }} else {{
-                    updateButton();
-                }}
-            }}, 1000);
         }}
         
         // Capture JavaScript errors and send to server

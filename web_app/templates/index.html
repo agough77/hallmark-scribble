@@ -723,10 +723,12 @@
                     });
                     btn.addEventListener('click', async () => {
                         const mode = btn.dataset.mode;
+                        console.log('Capture mode button clicked:', mode);
                         document.body.removeChild(modal);
                         
                         if (mode === 'window') {
                             // Show window picker
+                            console.log('Showing window picker...');
                             try {
                                 const windowRegion = await showWindowPicker();
                                 console.log('Window picker returned:', windowRegion);
@@ -737,6 +739,7 @@
                             }
                         } else if (mode === 'fullscreen') {
                             // Show monitor picker for fullscreen
+                            console.log('Showing monitor picker...');
                             try {
                                 const monitorRegion = await showMonitorPicker();
                                 console.log('Monitor picker returned:', monitorRegion);
@@ -1534,6 +1537,7 @@
         }
         
         function toggleRecordingSelection(path, checked) {
+            console.log('toggleRecordingSelection called:', path, checked);
             if (checked) {
                 if (!selectedRecordings.includes(path)) {
                     selectedRecordings.push(path);
@@ -1541,9 +1545,11 @@
             } else {
                 selectedRecordings = selectedRecordings.filter(p => p !== path);
             }
+            console.log('selectedRecordings now:', selectedRecordings);
         }
         
         async function deleteSelectedRecordings() {
+            console.log('deleteSelectedRecordings called, selectedRecordings:', selectedRecordings);
             if (selectedRecordings.length === 0) {
                 showStatus('No recordings selected', 'error');
                 return;
@@ -1561,6 +1567,7 @@
                 });
                 
                 const data = await response.json();
+                console.log('Delete response:', data);
                 if (data.success) {
                     showStatus(`Deleted ${data.deleted} recording(s)`, 'success');
                     selectedRecordings = []; // Clear selection after delete
@@ -1569,6 +1576,7 @@
                     showStatus('Error deleting: ' + data.error, 'error');
                 }
             } catch (err) {
+                console.error('Delete error:', err);
                 showStatus('Error: ' + err.message, 'error');
             }
         }

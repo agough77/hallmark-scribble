@@ -47,10 +47,8 @@ web_app/HallmarkScribble_Web/
 desktop_app/dist/
 desktop_app/build/
 
-# Executables (we'll track the final builds separately)
+# Executables (excluded due to size - upload to GitHub releases instead)
 *.exe
-!HallmarkScribble_Installer.exe
-!HallmarkScribble_Updater.exe
 
 # Temporary files
 *.tmp
