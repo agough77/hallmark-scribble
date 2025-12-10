@@ -783,7 +783,7 @@ def create_html_editor(scribble_dir):
         let isDrawing = false;
         let currentColor = '#ffff00'; // Yellow for highlighter
         let currentSize = 3;
-        let currentOpacity = 1.0; // Default full opacity
+        let currentOpacity = 0.35; // Default to 35% for highlighter transparency
         let canvas, ctx, originalImage, originalImageSrc;
         let currentStepIndex = null;
         let annotations = [];
@@ -1134,6 +1134,9 @@ def create_html_editor(scribble_dir):
                 const img = new Image();
                 img.crossOrigin = 'anonymous';  // Enable CORS
                 img.onload = function() {{
+                    // Clear canvas first
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    // Draw clean image
                     ctx.drawImage(img, 0, 0);
                     // Redraw remaining annotations
                     redrawAnnotations();
@@ -1141,7 +1144,10 @@ def create_html_editor(scribble_dir):
                     originalImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
                     showToast('↶ Undo successful');
                 }};
-                img.src = originalImageSrc;
+                // Add cache buster to force reload
+                img.src = originalImageSrc + '?t=' + new Date().getTime();
+            }} else {{
+                showToast('⚠️ Nothing to undo', 'warning');
             }}
         }}
         
@@ -1403,10 +1409,10 @@ def create_html_editor(scribble_dir):
                     }}
                     
                     if (window.isCroppedImage) {{
-                        showToast('✅ Cropped image saved as new file! Original preserved.', 'success', 4000);
+                        showToast('✅ Cropped image saved! Original preserved.', 'success', 3000);
                         window.isCroppedImage = false;
                     }} else {{
-                        showToast('✅ Annotated image saved successfully!', 'success', 4000);
+                        showToast('✅ Screenshot annotations saved to Step ' + (currentStepIndex || '?') + '!', 'success', 3000);
                     }}
                     // Close editor after successful save and image reload
                     setTimeout(() => closeAnnotationEditor(), 1000);

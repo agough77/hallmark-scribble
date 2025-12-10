@@ -560,14 +560,30 @@ def start_recording():
                         logging.info(f"Capturing specific monitor: {window_region}")
                         logging.info(f"Monitor region coordinates - left:{window_region['left']}, top:{window_region['top']}, width:{window_region['width']}, height:{window_region['height']}")
                         
-                        # pyautogui.screenshot() uses PIL ImageGrab which handles multi-monitor correctly
-                        screenshot = pyautogui.screenshot(region=(
-                            window_region['left'],
-                            window_region['top'],
-                            window_region['width'],
-                            window_region['height']
-                        ))
-                        logging.info(f"Monitor capture size: {screenshot.size}")
+                        # Use MSS library for multi-monitor screenshots (handles negative coordinates)
+                        try:
+                            import mss
+                            with mss.mss() as sct:
+                                monitor = {
+                                    'left': window_region['left'],
+                                    'top': window_region['top'],
+                                    'width': window_region['width'],
+                                    'height': window_region['height']
+                                }
+                                sct_img = sct.grab(monitor)
+                                # Convert to PIL Image
+                                from PIL import Image
+                                screenshot = Image.frombytes('RGB', sct_img.size, sct_img.rgb)
+                                logging.info(f"Monitor capture (MSS) size: {screenshot.size}")
+                        except ImportError:
+                            logging.warning("MSS not available, using pyautogui (may have issues with negative coordinates)")
+                            screenshot = pyautogui.screenshot(region=(
+                                window_region['left'],
+                                window_region['top'],
+                                window_region['width'],
+                                window_region['height']
+                            ))
+                            logging.info(f"Monitor capture (pyautogui) size: {screenshot.size}")
                     else:
                         # Full screen capture (all monitors)
                         logging.info("Capturing full screen (all monitors)")
@@ -734,6 +750,7 @@ def start_recording():
             elif capture_mode == 'fullscreen' and window_region:
                 # Handle monitor-specific fullscreen capture
                 logging.info(f"Fullscreen capture on specific monitor: {window_region}")
+                logging.info(f"Setting video region - left:{window_region['left']}, top:{window_region['top']}, width:{window_region['width']}, height:{window_region['height']}")
                 screen_recorder.set_region(
                     window_region['left'],
                     window_region['top'],

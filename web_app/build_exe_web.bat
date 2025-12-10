@@ -50,6 +50,7 @@ python3.11.exe -m PyInstaller ^
     --hidden-import=jinja2 ^
     --hidden-import=markupsafe ^
     --hidden-import=edge_tts ^
+    --hidden-import=mss ^
     --collect-all=flask ^
     --collect-all=flask_cors ^
     --collect-all=pynput ^

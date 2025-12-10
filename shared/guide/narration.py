@@ -135,6 +135,8 @@ def add_narration_to_video(scribble_dir, transcript_path=None, output_name="narr
         import edge_tts
         import asyncio
         
+        print("✓ edge-tts module imported successfully")
+        
         async def generate_audio():
             # Use natural voice with faster speaking rate
             # en-US-AriaNeural (female), en-US-GuyNeural (male), en-US-JennyNeural (female)
@@ -148,15 +150,19 @@ def add_narration_to_video(scribble_dir, transcript_path=None, output_name="narr
         
         try:
             asyncio.run(generate_audio())
+            print(f"✓ Narration audio generated with edge-tts: {narration_audio_path}")
         except Exception as tts_error:
             # If edge-tts fails, try gTTS with faster speed
             error_msg = str(tts_error).lower()
+            print(f"edge-tts error: {tts_error}")
             if "401" in error_msg or "invalid response" in error_msg or "wss://" in error_msg:
+                print("Falling back to gTTS due to edge-tts connection error...")
                 try:
                     from gtts import gTTS
                     # Use gTTS with slower=False for faster, more natural speech
                     tts = gTTS(text=narration_script, lang='en', slow=False, tld='com')
                     tts.save(narration_audio_path)
+                    print(f"✓ Narration audio generated with gTTS (fallback): {narration_audio_path}")
                     
                     # Speed up the audio by 15% using FFmpeg
                     temp_path = narration_audio_path.replace(".mp3", "_temp.mp3")
@@ -172,13 +178,13 @@ def add_narration_to_video(scribble_dir, transcript_path=None, output_name="narr
                     ], capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
                     
                     os.remove(temp_path)
-                except ImportError:
-                    raise ImportError("Both edge-tts and gTTS failed. Install gTTS: pip install gtts")
+                except ImportError as gtts_err:
+                    raise ImportError(f"Both edge-tts and gTTS failed. gTTS error: {gtts_err}. Install gTTS: pip install gtts")
             else:
                 raise tts_error
         
-    except ImportError:
-        raise ImportError("edge-tts not installed. Install with: pip install edge-tts")
+    except ImportError as import_err:
+        raise ImportError(f"edge-tts module not found: {import_err}. Install with: pip install edge-tts")
     
     # Get video duration to check if we need to adjust narration speed
     ffmpeg_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ffmpeg", "bin", "ffmpeg.exe")

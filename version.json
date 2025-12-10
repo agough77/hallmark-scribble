@@ -1,13 +1,17 @@
 {
-  "version": "1.0.8",
+  "version": "1.0.9",
   "release_date": "2025-12-10",
-  "download_url": "https://github.com/agough77/hallmark-scribble/releases/download/v1.0.8/HallmarkScribble_Installer.exe",
+  "download_url": "https://github.com/agough77/hallmark-scribble/releases/download/v1.0.9/HallmarkScribble_Installer.exe",
   "changelog": [
-    "FIXED: Screenshot annotation highlighter opacity now goes much lower (5% minimum) for better highlighting effect",
-    "FIXED: Removed duplicate close button in screenshot annotation editor",
-    "IMPROVED: Added detailed debug logging for monitor region screenshot/video capture",
-    "IMPROVED: Enhanced monitor selection logging for troubleshooting multi-monitor setups"
+    "FIXED: Video fullscreen mode now properly uses monitor coordinates (no more cut-off videos)",
+    "FIXED: Screenshot black screens on non-primary monitors using MSS library for negative coordinates",
+    "FIXED: Highlighter default opacity now starts at 35% (semi-transparent) instead of 100%",
+    "FIXED: Undo button now properly clears and reloads annotations",
+    "FIXED: Edge-tts error messages now show actual errors instead of 'not installed'",
+    "IMPROVED: Toast notification shows which step was updated after annotation save",
+    "ADDED: MSS library support for better multi-monitor screenshot handling"
   ],
   "minimum_version": "1.0.0",
   "critical_update": false
 }
+
