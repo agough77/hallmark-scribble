@@ -1,14 +1,13 @@
 {
-  "version": "1.0.7",
+  "version": "1.0.8",
   "release_date": "2025-12-10",
-  "download_url": "https://github.com/agough77/hallmark-scribble/releases/download/v1.0.7/HallmarkScribble_Installer.exe",
+  "download_url": "https://github.com/agough77/hallmark-scribble/releases/download/v1.0.8/HallmarkScribble_Installer.exe",
   "changelog": [
-    "FIXED: Missing pynput module in PyInstaller build",
-    "FIXED: Module import errors in annotation editor",
-    "FIXED: Annotated screenshots now save and display correctly (cache-busting)",
-    "FIXED: Narrated videos now appear in dropdown immediately after creation",
-    "IMPROVED: Added debug logging for troubleshooting monitor picker and delete functions"
+    "FIXED: Screenshot annotation highlighter opacity now goes much lower (5% minimum) for better highlighting effect",
+    "FIXED: Removed duplicate close button in screenshot annotation editor",
+    "IMPROVED: Added detailed debug logging for monitor region screenshot/video capture",
+    "IMPROVED: Enhanced monitor selection logging for troubleshooting multi-monitor setups"
   ],
   "minimum_version": "1.0.0",
-  "critical_update": true
+  "critical_update": false
 }

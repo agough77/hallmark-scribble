@@ -558,6 +558,9 @@ def start_recording():
                     elif capture_mode == 'fullscreen' and window_region:
                         # Capture specific monitor (fullscreen on one monitor)
                         logging.info(f"Capturing specific monitor: {window_region}")
+                        logging.info(f"Monitor region coordinates - left:{window_region['left']}, top:{window_region['top']}, width:{window_region['width']}, height:{window_region['height']}")
+                        
+                        # pyautogui.screenshot() uses PIL ImageGrab which handles multi-monitor correctly
                         screenshot = pyautogui.screenshot(region=(
                             window_region['left'],
                             window_region['top'],
@@ -743,7 +746,10 @@ def start_recording():
             audio_path = os.path.join(scribble_dir, "audio.wav")
             
             # Start screen recording
+            # full_screen=True for fullscreen mode (even with specific monitor - uses crop filter)
+            # full_screen=False for window mode
             full_screen = (capture_mode == 'fullscreen')
+            logging.info(f"Starting screen recording: full_screen={full_screen}, has_region={window_region is not None}")
             screen_recorder.start_screen_recording(output=video_path, full_screen=full_screen)
             
             # Start audio recording (optional - don't fail if no audio device)

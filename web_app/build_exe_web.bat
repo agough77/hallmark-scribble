@@ -53,6 +53,7 @@ python3.11.exe -m PyInstaller ^
     --collect-all=flask ^
     --collect-all=flask_cors ^
     --collect-all=pynput ^
+    --collect-all=edge_tts ^
     --noconfirm ^
     web_app.py
 

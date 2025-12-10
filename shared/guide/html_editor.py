@@ -750,7 +750,6 @@ def create_html_editor(scribble_dir):
     <!-- Annotation Editor Modal -->
     <div class="modal" id="annotationModal">
         <div class="modal-content">
-            <button class="close-modal" onclick="closeAnnotationEditor()" title="Close Editor (ESC)">✕</button>
             <div class="annotation-toolbar">
                 <button class="tool-btn active" data-tool="pen" onclick="selectTool('pen')">🖊️ Pen</button>
                 <button class="tool-btn" data-tool="highlighter" onclick="selectTool('highlighter')">🖍️ Highlighter</button>
@@ -759,16 +758,16 @@ def create_html_editor(scribble_dir):
                 <button class="tool-btn" data-tool="circle" onclick="selectTool('circle')">⭕ Circle</button>
                 <button class="tool-btn" data-tool="text" onclick="selectTool('text')">🔤 Text</button>
                 <button class="tool-btn" data-tool="crop" onclick="selectTool('crop')">✂️ Crop</button>
-                <input type="color" id="colorPicker" class="color-picker" value="#ff0000" title="Pick color">
+                <input type="color" id="colorPicker" class="color-picker" value="#ffff00" title="Pick color">
                 <label style="color: white; margin-left: 10px;">Size:</label>
                 <input type="range" id="sizeSlider" class="size-slider" min="1" max="20" value="3">
-                <label style="color: white; margin-left: 10px;">Opacity:</label>
-                <input type="range" id="opacitySlider" class="size-slider" min="10" max="100" value="100" title="Adjust transparency (100 = opaque, 10 = very transparent)">
+                <label for="opacitySlider" style="color: white; margin-left: 10px;">Opacity: 35%</label>
+                <input type="range" id="opacitySlider" class="size-slider" min="5" max="100" value="35" title="Adjust transparency (100 = opaque, 5 = very transparent)">
                 <button class="tool-btn" onclick="undoAnnotation()">↶ Undo</button>
                 <button class="tool-btn" onclick="clearAnnotations()">🗑️ Clear All</button>
                 <button class="tool-btn" style="background: #e67e22;" onclick="restoreOriginal()">↻ Restore Original</button>
                 <button class="tool-btn" style="background: #27ae60;" onclick="saveAnnotatedImage()">💾 Save</button>
-                <button class="tool-btn" style="background: #e74c3c;" onclick="closeAnnotationEditor()">✕ Close</button>
+                <button class="tool-btn" style="background: #e74c3c; margin-left: 10px;" onclick="closeAnnotationEditor()">✕ Close</button>
             </div>
             <div class="canvas-container">
                 <canvas id="annotationCanvas"></canvas>
@@ -782,7 +781,7 @@ def create_html_editor(scribble_dir):
         const scribbleDir = '{scribble_dir.replace(chr(92), "/")}';
         let currentTool = 'pen';
         let isDrawing = false;
-        let currentColor = '#ff0000';
+        let currentColor = '#ffff00'; // Yellow for highlighter
         let currentSize = 3;
         let currentOpacity = 1.0; // Default full opacity
         let canvas, ctx, originalImage, originalImageSrc;
@@ -890,7 +889,13 @@ def create_html_editor(scribble_dir):
             }});
             
             opacitySlider.addEventListener('input', (e) => {{
-                currentOpacity = parseInt(e.target.value) / 100; // Convert 10-100 to 0.1-1.0
+                currentOpacity = parseInt(e.target.value) / 100; // Convert 5-100 to 0.05-1.0
+                // Update opacity display
+                const opacityLabel = document.querySelector('label[for="opacitySlider"]');
+                if (opacityLabel) {{
+                    const percent = parseInt(e.target.value);
+                    opacityLabel.textContent = `Opacity: ${{percent}}%`;
+                }}
             }});
             
             canvas.addEventListener('mousedown', handleMouseDown);
@@ -991,8 +996,9 @@ def create_html_editor(scribble_dir):
                 ctx.lineWidth = currentSize * 5;
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
-                // Highlighter uses its own opacity or the user-set opacity (whichever is lower)
-                ctx.globalAlpha = Math.min(0.3, currentOpacity);
+                // Highlighter uses semi-transparent color to show text underneath
+                // Lower opacity = more transparent, you can see text better
+                ctx.globalAlpha = currentOpacity;
                 ctx.lineTo(x, y);
                 ctx.stroke();
             }} else if (currentTool === 'arrow' || currentTool === 'rectangle' || currentTool === 'circle') {{
@@ -1096,7 +1102,7 @@ def create_html_editor(scribble_dir):
             annotations.forEach(ann => {{
                 ctx.strokeStyle = ann.color;
                 ctx.lineWidth = ann.size;
-                ctx.globalAlpha = 1;
+                ctx.globalAlpha = ann.opacity || 1; // Use saved opacity, default to 1 for old annotations
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
                 
@@ -1114,9 +1120,11 @@ def create_html_editor(scribble_dir):
                 }} else if (ann.tool === 'text') {{
                     ctx.font = `${{ann.size * 8}}px Arial`;
                     ctx.fillStyle = ann.color;
+                    ctx.globalAlpha = ann.opacity || 1; // Also apply to text
                     ctx.fillText(ann.text, ann.x, ann.y);
                 }}
             }});
+            ctx.globalAlpha = 1; // Reset to default after redrawing all
         }}
         
         function undoAnnotation() {{
@@ -1381,8 +1389,17 @@ def create_html_editor(scribble_dir):
                         const cleanSrc = originalSrc.split('?')[0];
                         
                         // Add new timestamp
-                        imgElement.src = cleanSrc + '?t=' + timestamp;
-                        console.log('Updated image element with cache-busting URL:', imgElement.src);
+                        const newSrc = cleanSrc + '?t=' + timestamp;
+                        imgElement.src = newSrc;
+                        console.log('Updated image element with cache-busting URL:', newSrc);
+                        
+                        // Force reload the image by creating a new Image object
+                        const preloadImg = new Image();
+                        preloadImg.onload = function() {{
+                            imgElement.src = newSrc + '&reload=' + Math.random();
+                            console.log('Image preloaded and reloaded');
+                        }};
+                        preloadImg.src = newSrc;
                     }}
                     
                     if (window.isCroppedImage) {{
@@ -1391,8 +1408,8 @@ def create_html_editor(scribble_dir):
                     }} else {{
                         showToast('✅ Annotated image saved successfully!', 'success', 4000);
                     }}
-                    // Close editor after successful save
-                    setTimeout(() => closeAnnotationEditor(), 500);
+                    // Close editor after successful save and image reload
+                    setTimeout(() => closeAnnotationEditor(), 1000);
                 }} else {{
                     showToast('❌ Failed to save: ' + data.error, 'error', 5000);
                     console.error('Save failed:', data.error);
