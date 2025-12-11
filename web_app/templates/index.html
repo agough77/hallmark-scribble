@@ -390,7 +390,7 @@
                 <div class="button-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px;">
                     <button class="btn btn-primary" onclick="startScreenshotMode()">Start</button>
                     <button class="btn btn-danger" onclick="stopScreenshotMode()">Stop</button>
-                    <button class="btn btn-secondary" onclick="openEditor()">Editor</button>
+                    <button id="editorButton" class="btn btn-secondary" onclick="openEditor()">Editor</button>
                 </div>
             </div>
             
@@ -405,7 +405,7 @@
                 <div class="button-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
                     <button class="btn btn-primary" onclick="startVideoRecording()">Start</button>
                     <button class="btn btn-danger" onclick="stopVideoRecording()">Stop</button>
-                    <button class="btn btn-secondary" onclick="openVideoEditor()">Edit Video</button>
+                    <button id="videoEditorButton" class="btn btn-secondary" onclick="openVideoEditor()" disabled style="opacity: 0.5; cursor: not-allowed;">Edit Video</button>
                 </div>
             </div>
             
@@ -990,6 +990,14 @@
         }
         
         async function generateGuideAutomatically() {
+            // Disable Editor button while AI is generating
+            const editorBtn = document.getElementById('editorButton');
+            if (editorBtn) {
+                editorBtn.disabled = true;
+                editorBtn.style.opacity = '0.5';
+                editorBtn.style.cursor = 'not-allowed';
+            }
+            
             try {
                 const response = await fetch('/api/generate_guide', {
                     method: 'POST',
@@ -1003,6 +1011,13 @@
                     document.getElementById('guideOutput').classList.remove('hidden');
                     updateStatus(`✓ Complete! ${screenshotCount} screenshots with AI guide`, 'success');
                     showStatus('Guide generated successfully!', 'success');
+                    
+                    // Re-enable Editor button
+                    if (editorBtn) {
+                        editorBtn.disabled = false;
+                        editorBtn.style.opacity = '1';
+                        editorBtn.style.cursor = 'pointer';
+                    }
                 } else {
                     // Show detailed error message
                     let errorMsg = data.error || 'Failed to generate guide';
@@ -1016,10 +1031,24 @@
                     }
                     updateStatus('Screenshot session ended - ' + errorMsg, 'error');
                     showStatus(errorMsg, 'error');
+                    
+                    // Re-enable Editor button on error
+                    if (editorBtn) {
+                        editorBtn.disabled = false;
+                        editorBtn.style.opacity = '1';
+                        editorBtn.style.cursor = 'pointer';
+                    }
                 }
             } catch (err) {
                 updateStatus('Screenshot session ended', 'info');
                 showStatus('Session ended. Click Generate Guide manually if needed.', 'info');
+                
+                // Re-enable Editor button on exception
+                if (editorBtn) {
+                    editorBtn.disabled = false;
+                    editorBtn.style.opacity = '1';
+                    editorBtn.style.cursor = 'pointer';
+                }
             }
         }
         
@@ -1199,6 +1228,14 @@
                 return;
             }
             
+            // Disable Edit Video button when starting new recording
+            const videoEditorBtn = document.getElementById('videoEditorButton');
+            if (videoEditorBtn) {
+                videoEditorBtn.disabled = true;
+                videoEditorBtn.style.opacity = '0.5';
+                videoEditorBtn.style.cursor = 'not-allowed';
+            }
+            
             try {
                 // Show capture mode picker (fullscreen or window)
                 const captureModeResult = await showCaptureModePicker();
@@ -1267,6 +1304,31 @@
                     isRecording = false;
                     updateStatus('Video recording stopped', 'success');
                     showStatus('Video recording saved', 'success');
+                    
+                    // Check video duration and enable/disable Edit Video button
+                    const videoEditorBtn = document.getElementById('videoEditorButton');
+                    console.log('Video duration from server:', data.duration);
+                    
+                    if (data.duration && data.duration >= 5) {
+                        // Enable button if video is 5 seconds or longer
+                        videoEditorBtn.disabled = false;
+                        videoEditorBtn.style.opacity = '1';
+                        videoEditorBtn.style.cursor = 'pointer';
+                        console.log('Video editor button enabled - duration:', data.duration, 'seconds');
+                    } else {
+                        // Keep button disabled if video is too short or duration check failed
+                        videoEditorBtn.disabled = true;
+                        videoEditorBtn.style.opacity = '0.5';
+                        videoEditorBtn.style.cursor = 'not-allowed';
+                        
+                        if (data.duration === undefined || data.duration === 0) {
+                            console.warn('Video duration check failed or returned 0');
+                            showStatus('⚠️ Could not verify video duration. Button disabled for safety.', 'warning', 5000);
+                        } else {
+                            console.log('Video too short:', data.duration, 'seconds');
+                            showStatus(`⚠️ Video is too short (${data.duration.toFixed(1)}s). Please record at least 5 seconds.`, 'error', 5000);
+                        }
+                    }
                 } else {
                     showStatus(`Failed to stop recording: ${data.error}`, 'error');
                 }
@@ -1277,6 +1339,13 @@
         }
         
         function openVideoEditor() {
+            // Check if button is disabled (video too short)
+            const videoEditorBtn = document.getElementById('videoEditorButton');
+            if (videoEditorBtn && videoEditorBtn.disabled) {
+                showStatus('⚠️ Video is too short (under 5 seconds). Please record a longer video.', 'error', 5000);
+                return;
+            }
+            
             if (!currentOutputDir) {
                 showStatus('No active session. Start a video recording first!', 'error');
                 return;

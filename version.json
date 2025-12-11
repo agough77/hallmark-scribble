@@ -1,15 +1,17 @@
 {
-  "version": "1.0.9",
-  "release_date": "2025-12-10",
-  "download_url": "https://github.com/agough77/hallmark-scribble/releases/download/v1.0.9/HallmarkScribble_Installer.exe",
+  "version": "1.0.10",
+  "release_date": "2025-12-11",
+  "download_url": "https://github.com/agough77/hallmark-scribble/releases/download/v1.0.10/HallmarkScribble_Installer.exe",
   "changelog": [
-    "FIXED: Video fullscreen mode now properly uses monitor coordinates (no more cut-off videos)",
-    "FIXED: Screenshot black screens on non-primary monitors using MSS library for negative coordinates",
-    "FIXED: Highlighter default opacity now starts at 35% (semi-transparent) instead of 100%",
-    "FIXED: Undo button now properly clears and reloads annotations",
-    "FIXED: Edge-tts error messages now show actual errors instead of 'not installed'",
-    "IMPROVED: Toast notification shows which step was updated after annotation save",
-    "ADDED: MSS library support for better multi-monitor screenshot handling"
+    "FIXED: Highlighter opacity no longer compounds during slow drawing (path-based rendering)",
+    "FIXED: Step reordering - edited screenshots now maintain correct positions after refresh",
+    "FIXED: Annotation save location - edits now save to the correct step consistently",
+    "ADDED: Generate SOP now includes embedded screenshots with notes in HTML output",
+    "ADDED: Video editor button lock - disabled for videos under 5 seconds with warning toast",
+    "IMPROVED: SOP screenshot detection - finds all image files if screenshot_ prefix missing",
+    "IMPROVED: Editor button disabled during AI generation to prevent user confusion",
+    "IMPROVED: Build automation - all scripts run without user prompts",
+    "IMPROVED: Web-only installer - removed desktop app for cleaner deployment"
   ],
   "minimum_version": "1.0.0",
   "critical_update": false

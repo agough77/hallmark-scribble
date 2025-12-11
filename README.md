@@ -1,52 +1,43 @@
 # 🎬 Hallmark Scribble
 
-A comprehensive AI-powered screen recording and documentation tool available in two versions: a desktop application and a web application.
+A comprehensive AI-powered screen recording and documentation tool with a modern web-based interface.
 
 ## 📁 Project Structure
 
 ```
 Hallmark Scribble/
-├── desktop_app/          # Desktop application (PyQt5)
-│   ├── main.py           # Desktop app entry point
-│   ├── splash.py         # Splash screen
-│   ├── requirements.txt  # Desktop dependencies
-│   └── ...               # Build scripts and docs
-│
 ├── web_app/              # Web application (Flask)
 │   ├── web_app.py        # Web server entry point
 │   ├── templates/        # HTML templates
-│   ├── web_requirements.txt
+│   ├── requirements.txt  # All dependencies
 │   └── WEB_README.md
 │
-├── shared/               # Shared modules (used by both apps)
+├── shared/               # Shared modules
 │   ├── recorder/         # Audio & screen recording
-│   ├── transcription/    # Whisper transcription
+│   ├── transcription/    # AI transcription (Gemini)
 │   ├── utils/            # Utility functions
-│   ├── guide/            # AI guide generation
-│   └── ffmpeg/           # FFmpeg binaries
+│   ├── guide/            # AI guide generation & HTML editor
+│   └── ffmpeg/           # FFmpeg binaries (bundled)
 │
 ├── outputs/              # Generated recordings and guides
-├── config.txt            # Shared configuration
-└── .env                  # Environment variables
+├── BUILD_COMPLETE.bat    # Build all components
+├── version.json          # Version metadata
+└── .env                  # Environment variables (GEMINI_API_KEY)
 ```
 
 ## 🚀 Quick Start
 
-### Desktop Application
-```bash
-cd desktop_app
-pip install -r requirements.txt
-python main.py
-```
-
-### Web Application
+### Development Mode
 ```bash
 cd web_app
-pip install -r web_requirements.txt
+pip install -r requirements.txt
 python web_app.py
 ```
 
 Then open your browser to `http://localhost:5000`
+
+### Production (Standalone Installer)
+Run `BUILD_COMPLETE.bat` to build the installer, or download the latest release from GitHub.
 
 ## ✨ Features
 
@@ -56,55 +47,73 @@ Then open your browser to `http://localhost:5000`
 - **🤖 AI Vision Analysis**: Google Gemini AI analyzes your actions and writes natural narration scripts
 - **🎙️ AI Narration**: Text-to-speech narration with edge-tts or gTTS fallback
 - **✏️ Interactive HTML Editor**: Drag-and-drop editor to reorder, delete, and customize your guides
-- **📄 Export Options**: Generate markdown guides and self-contained HTML files
-- **🗑️ Cleanup Manager**: Select and delete old recordings to free up space
-- **⌨️ Global Hotkey**: Stop recording with Ctrl+Shift+S without showing the app
-- **🎨 Windows Metro UI**: Modern, flat design with intuitive icons and colors
+## ✨ Features
+
+- **🎥 Multi-Monitor Recording**: Select specific monitor or capture all screens
+- **🎤 Audio Recording**: System audio + microphone with automatic mixing
+- **📸 Screenshot Mode**: Capture individual screenshots with auto-input logging
+- **🤖 AI-Powered Transcription**: Gemini AI analyzes screenshots and generates step-by-step guides
+- **🎨 Interactive HTML Editor**: Drag-drop steps, annotate screenshots, rich text formatting
+- **✏️ Annotation Tools**: Pen, highlighter (5% opacity), arrows, rectangles, circles, text
+- **🗣️ AI Narration**: Text-to-speech with edge-tts (primary) + gTTS (fallback)
+- **🎬 Video Merging**: Combines recording + narration audio automatically
+- **📄 Export Options**: Generate self-contained HTML guides
+- **🌐 Web-Based**: Access via browser at localhost:5000
+- **🔄 Auto-Update**: Built-in updater checks for new versions
 
 ## 📋 Requirements
 
 - Python 3.11+
-- FFmpeg (included in `ffmpeg/` folder)
-- Google Gemini API key
-- Required Python packages (auto-installed)
+- FFmpeg (bundled in `shared/ffmpeg/`)
+- Google Gemini API key (for AI transcription)
+- Windows 10/11 (for standalone installer)
 
 ## 🚀 Installation
 
-1. Clone or download this repository
+### Option 1: Standalone Installer (Recommended)
+1. Download `HallmarkScribble_Installer.exe` from [Releases](https://github.com/agough77/hallmark-scribble/releases)
+2. Right-click → Run as administrator
+3. Installer will extract web app, updater, and create shortcuts
+4. Launch from desktop shortcut or Start menu
+
+### Option 2: Development Mode
+1. Clone this repository
 2. Create a `.env` file with your Google Gemini API key:
    ```
    GEMINI_API_KEY=your_api_key_here
    ```
-3. Run the application:
+3. Run the web server:
+   ```bash
+   cd web_app
+   pip install -r requirements.txt
+   python web_app.py
    ```
-   python main.py
-   ```
-
-Dependencies will be auto-installed as needed.
+4. Open browser to `http://localhost:5000`
 
 ## 🎯 Usage
 
-### Quick Start:
-1. **Start Recording** - Click the green "Start Recording" button (window minimizes)
-2. **Perform Actions** - Do the task you want to document
-3. **Stop Recording** - Press `Ctrl+Shift+S` or click "Stop Recording"
-4. **Generate Transcript** - AI analyzes screenshots and writes narration
-5. **Add AI Narration** - Creates narrated video with voice-over
-6. **Preview** - Watch the final narrated video
-7. **Open HTML Editor** - Customize and export your guide
+### Recording Workflow:
+1. **Select Capture Mode** - Choose fullscreen, window, or screenshot mode
+2. **Choose Monitor** - If multiple monitors, select which to capture
+3. **Start Recording** - Click "Start Recording" (or "Start Screenshot Mode")
+4. **Perform Actions** - Do the task you want to document
+5. **Stop Recording** - Click "Stop" button
+6. **Open HTML Editor** - View and edit your guide
 
-### Advanced Features:
-- **Region Recording**: Select specific screen area instead of full screen
-- **Settings**: Choose your audio input device
-- **Cleanup Library**: Manage and delete old recordings
-- **Export Guide**: Create markdown or HTML documentation
+### Guide Editor Features:
+- **Drag-Drop Steps** - Reorder steps by dragging
+- **Edit & Annotate** - Click "Edit & Annotate" to mark up screenshots
+- **Generate AI Instructions** - Let AI analyze and write step descriptions
+- **Add Narration** - Create narrated video with AI voice-over
+- **Rich Text Formatting** - Bold, italic, lists, colors, links
+- **Export HTML** - Save as self-contained HTML file
 
 ## 📁 Output Structure
 
-Recordings are organized by date in `outputs/`:
+Recordings are organized by date in `~/Downloads/Hallmark Scribble Outputs/`:
 ```
-outputs/
-└── 2025-11-25/
+Hallmark Scribble Outputs/
+└── 2025-12-11/
     ├── Scribble 1/
     │   ├── recording.mp4          # Original screen recording
     │   ├── audio.wav               # Microphone audio
@@ -114,38 +123,59 @@ outputs/
     │   ├── actions.log             # Input event log
     │   ├── screenshot_*.png        # Screenshots on each click
     │   ├── editor.html             # Interactive guide editor
-    │   └── guide.md                # Markdown guide
+    │   └── notes.json              # Step metadata
     ├── Scribble 2/
     └── ...
 ```
 
-## 🔑 Keyboard Shortcuts
+## 🛠️ Building from Source
 
-- **Ctrl+Shift+S** - Stop recording (global hotkey)
+Run the complete build:
+```bash
+.\BUILD_COMPLETE.bat
+```
 
-## 🛠️ Technical Details
+This creates:
+- `web_app\dist\HallmarkScribble_Web\` - Web application folder
+- `HallmarkScribble_Updater.exe` - Update checker
+- `HallmarkScribble_Installer.exe` - Complete installer (~400 MB)
 
-### Dependencies:
-- **PyQt5** - Modern Metro UI interface
+## 🔧 Technical Details
+
+### Core Technologies:
+- **Flask 3.0** - Web framework
 - **FFmpeg** - Screen and audio recording
 - **Google Gemini 2.5 Flash** - AI vision analysis
 - **edge-tts / gTTS** - Text-to-speech narration
-- **keyboard** - Global hotkey support
-- **pynput** - Input event tracking
-- **pyautogui** - Screenshot automation
+- **MSS 9.0+** - Multi-monitor screenshot library
+- **Pillow** - Image processing
+- **PyInstaller** - Executable bundling
 
 ### AI Features:
-- Vision-based analysis (analyzes what you do, not just what you say)
+- Vision-based analysis (Gemini AI analyzes screenshots, not just text)
 - Conversational narration scripts with natural speech patterns
 - Optimized speech rate (+20% for edge-tts, 1.15x for gTTS)
-- 2x volume boost for clear audio
+- Automatic audio mixing and volume normalization
 
-## 📂 Project Structure
+## 🔄 Version Management
 
-```
-Hallmark Scribble/
-├── main.py                     # Main application with Metro UI
-├── recorder/
+The application includes auto-update functionality:
+1. On launch, checks GitHub for newer versions
+2. Compares local `version.json` with GitHub's latest
+3. Downloads and installs updates automatically
+4. Seamless upgrade without losing settings
+
+## 📝 License
+
+See LICENSE file for details.
+
+## 🤝 Contributing
+
+Contributions welcome! Please open an issue or pull request.
+
+## 📧 Support
+
+For issues or questions, please use the GitHub Issues page.
 │   ├── screen.py              # FFmpeg screen recording
 │   ├── audio.py               # Audio device management
 │   └── input_logger.py        # Input tracking

@@ -840,13 +840,58 @@ def stop_recording():
                 video_path = session_data.get('video_path')
                 audio_path = session_data.get('audio_path')
                 
+                # Get video duration using ffprobe
+                video_duration = 0
+                if video_path and os.path.exists(video_path):
+                    # Wait a moment for file to be fully written
+                    time.sleep(0.5)
+                    
+                    try:
+                        import subprocess
+                        
+                        # Get ffprobe path
+                        shared_path = get_shared_path()
+                        ffprobe_path = os.path.join(shared_path, 'ffmpeg', 'bin', 'ffprobe.exe')
+                        
+                        if not os.path.exists(ffprobe_path):
+                            # Try alternative location
+                            ffprobe_path = 'ffprobe'  # Use system PATH
+                        
+                        logging.info(f"Using ffprobe at: {ffprobe_path}")
+                        
+                        cmd = [
+                            ffprobe_path,
+                            '-v', 'error',
+                            '-show_entries', 'format=duration',
+                            '-of', 'default=noprint_wrappers=1:nokey=1',
+                            video_path
+                        ]
+                        
+                        result = subprocess.run(
+                            cmd,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True,
+                            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
+                            timeout=5
+                        )
+                        
+                        if result.returncode == 0 and result.stdout.strip():
+                            video_duration = float(result.stdout.strip())
+                            logging.info(f"Video duration: {video_duration:.2f} seconds")
+                        else:
+                            logging.warning(f"ffprobe failed: {result.stderr}")
+                    except Exception as e:
+                        logging.warning(f"Failed to get video duration: {e}", exc_info=True)
+                
                 del active_sessions[session_id]
                 logging.info(f"Stopped video session {session_id}")
                 
                 return jsonify({
                     'success': True,
                     'video_path': video_path,
-                    'audio_path': audio_path
+                    'audio_path': audio_path,
+                    'duration': video_duration
                 })
         else:
             return jsonify({'success': False, 'error': 'Session not found'}), 404
@@ -1832,11 +1877,28 @@ def delete_recordings():
         
         import shutil
         deleted = 0
+        parent_dirs_to_check = set()
+        
         for path in paths:
             if os.path.exists(path) and os.path.isdir(path):
+                # Store parent directory before deleting
+                parent_dir = os.path.dirname(path)
+                parent_dirs_to_check.add(parent_dir)
+                
                 shutil.rmtree(path)
                 deleted += 1
                 logging.info(f"Deleted recording: {path}")
+        
+        # Clean up empty parent directories (date folders)
+        for parent_dir in parent_dirs_to_check:
+            try:
+                if os.path.exists(parent_dir) and os.path.isdir(parent_dir):
+                    # Check if directory is empty
+                    if not os.listdir(parent_dir):
+                        os.rmdir(parent_dir)
+                        logging.info(f"Removed empty folder: {parent_dir}")
+            except Exception as cleanup_error:
+                logging.warning(f"Could not remove empty folder {parent_dir}: {cleanup_error}")
         
         return jsonify({'success': True, 'deleted': deleted})
     except Exception as e:
@@ -2554,8 +2616,18 @@ def generate_sop():
             return jsonify({'success': False, 'error': 'Invalid output directory'}), 400
         
         # Get screenshots from output directory
-        screenshots = sorted([f for f in os.listdir(output_dir) 
-                            if f.startswith('screenshot_') and f.endswith('.png')])
+        all_files = os.listdir(output_dir) if os.path.exists(output_dir) else []
+        screenshots = sorted([f for f in all_files 
+                            if f.startswith('screenshot_') and (f.endswith('.png') or f.endswith('.jpg') or f.endswith('.jpeg'))])
+        
+        # If no screenshots found with screenshot_ prefix, try looking for any image files
+        if not screenshots:
+            screenshots = sorted([f for f in all_files 
+                                if f.endswith(('.png', '.jpg', '.jpeg')) and not f.startswith('.')])
+        
+        logging.info(f"SOP Generation - Output dir: {output_dir}")
+        logging.info(f"SOP Generation - All files: {all_files}")
+        logging.info(f"SOP Generation - Found {len(screenshots)} screenshots: {screenshots}")
         
         # Load notes.json if available for fallback
         notes_path = os.path.join(output_dir, 'notes.json')
@@ -2585,7 +2657,7 @@ def generate_sop():
                 prompt = f"""You are an expert technical writer. Convert the following how-to guide into a formal Standard Operating Procedure (SOP).
 
 The SOP should follow this format:
-- Title
+- Title: {title}
 - Purpose (what this procedure accomplishes)
 - Scope (when and where to use this)
 - Responsibilities (who performs this)
@@ -2598,16 +2670,48 @@ Make the language professional, clear, and concise. Each step should be actionab
 HERE IS THE GUIDE:
 {guide_content}
 
-Generate a well-formatted SOP document in plain text format:"""
+Generate a well-formatted SOP document in HTML format with proper headings (<h1>, <h2>), paragraphs (<p>), and ordered lists (<ol><li>). Include basic CSS styling for a professional appearance."""
                 
                 logging.info(f"Generating SOP using {model_name}")
                 response = model.generate_content(prompt)
-                sop_content = response.text
+                sop_html = response.text
                 
                 # Strip code block markers if present
-                sop_content = re.sub(r'^```(?:text|markdown|plain)?\s*\n', '', sop_content, flags=re.MULTILINE)
-                sop_content = re.sub(r'\n```\s*$', '', sop_content)
-                sop_content = sop_content.strip()
+                sop_html = re.sub(r'^```(?:html)?\s*\n', '', sop_html, flags=re.MULTILINE)
+                sop_html = re.sub(r'\n```\s*$', '', sop_html)
+                sop_html = sop_html.strip()
+                
+                # Wrap in full HTML document if not already
+                if not sop_html.lower().startswith('<!doctype') and not sop_html.lower().startswith('<html'):
+                    sop_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title} - Standard Operating Procedure</title>
+    <style>
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }}
+        h1 {{ color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }}
+        h2 {{ color: #34495e; margin-top: 30px; border-bottom: 1px solid #bdc3c7; padding-bottom: 5px; }}
+        ol {{ padding-left: 25px; }}
+        li {{ margin-bottom: 10px; }}
+        .meta {{ color: #7f8c8d; font-style: italic; margin-bottom: 30px; }}
+    </style>
+</head>
+<body>
+{sop_html}
+</body>
+</html>"""
+                else:
+                    sop_content = sop_html
+                
                 ai_generated = True
                 logging.info("SOP generated using AI")
             else:
@@ -2618,60 +2722,88 @@ Generate a well-formatted SOP document in plain text format:"""
         # Fallback: Generate SOP from notes if AI failed or not available
         if not sop_content:
             logging.info("Generating SOP from notes.json")
-            sop_content = f"""# {title}
-
-## Purpose
-This Standard Operating Procedure (SOP) provides step-by-step instructions for completing the {title} process.
-
-## Scope
-This procedure applies to all personnel who need to perform {title}.
-
-## Prerequisites
-- Access to required systems and applications
-- Necessary permissions and credentials
-- Understanding of basic system navigation
-
-## Procedure
-
-"""
+            steps_html = ""
             if notes:
                 for i, note in enumerate(notes, 1):
                     step_note = note.get('note', '').strip()
                     if step_note:
-                        sop_content += f"{i}. {step_note}\n\n"
+                        steps_html += f"<li>{step_note}</li>\n"
                     else:
-                        sop_content += f"{i}. Refer to Screenshot {i} for this step.\n\n"
-            else:
-                # If no notes, parse guide_content line by line
-                lines = guide_content.strip().split('\n')
-                step_num = 1
-                for line in lines:
-                    line = line.strip()
-                    if line and not line.startswith('#'):
-                        sop_content += f"{step_num}. {line}\n\n"
-                        step_num += 1
+                        steps_html += f"<li>Refer to Screenshot {i} for this step.</li>\n"
             
-            sop_content += f"""## Visual References
-This SOP includes {len(screenshots)} screenshots to provide visual guidance for each step.
-
-## Notes
-- Follow each step carefully in the order presented
-- Refer to accompanying screenshots for visual confirmation
-- Report any issues or discrepancies to your supervisor
-
----
-Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
-"""
-            sop_content = sop_content.strip()
+            sop_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title} - Standard Operating Procedure</title>
+    <style>
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }}
+        h1 {{ color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }}
+        h2 {{ color: #34495e; margin-top: 30px; border-bottom: 1px solid #bdc3c7; padding-bottom: 5px; }}
+        ol {{ padding-left: 25px; }}
+        li {{ margin-bottom: 10px; }}
+        .meta {{ color: #7f8c8d; font-style: italic; margin-bottom: 30px; }}
+    </style>
+</head>
+<body>
+    <h1>{title}</h1>
+    <p class="meta">Standard Operating Procedure</p>
+    
+    <h2>Purpose</h2>
+    <p>This Standard Operating Procedure (SOP) provides step-by-step instructions for completing the {title} process.</p>
+    
+    <h2>Scope</h2>
+    <p>This procedure applies to all personnel who need to perform {title}.</p>
+    
+    <h2>Prerequisites</h2>
+    <ul>
+        <li>Access to required systems and applications</li>
+        <li>Necessary permissions and credentials</li>
+        <li>Understanding of basic system navigation</li>
+    </ul>
+    
+    <h2>Procedure</h2>
+    <ol>
+{steps_html}
+    </ol>
+</body>
+</html>"""
         
         # Create HTML version with embedded screenshots
         import base64
+        
+        # Extract the body content from AI-generated HTML if present
+        if ai_generated and sop_content:
+            # Extract content between <body> tags if it's a full HTML document
+            body_match = re.search(r'<body[^>]*>(.*?)</body>', sop_content, re.DOTALL | re.IGNORECASE)
+            if body_match:
+                sop_body_content = body_match.group(1)
+            else:
+                # If no body tags, use the entire content
+                sop_body_content = sop_content
+        else:
+            # For notes-based generation, sop_content is already in HTML format
+            body_match = re.search(r'<body[^>]*>(.*?)</body>', sop_content, re.DOTALL | re.IGNORECASE)
+            if body_match:
+                sop_body_content = body_match.group(1)
+            else:
+                sop_body_content = sop_content
+        
+        # Create complete HTML with screenshots embedded
         html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{title}</title>
+    <title>{title} - Standard Operating Procedure</title>
     <style>
         body {{
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -2697,6 +2829,10 @@ Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
             margin-top: 30px;
             border-left: 4px solid #3498db;
             padding-left: 15px;
+        }}
+        h3 {{
+            color: #34495e;
+            margin-top: 20px;
         }}
         .screenshot {{
             margin: 20px 0;
@@ -2731,70 +2867,28 @@ Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
             border-radius: 4px;
             overflow-x: auto;
         }}
+        ol, ul {{
+            padding-left: 25px;
+        }}
+        li {{
+            margin-bottom: 10px;
+        }}
+        p {{
+            margin-bottom: 15px;
+        }}
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>{title}</h1>
         <div class="meta">
             Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}<br>
+            Method: {'AI-Generated' if ai_generated else 'Template-Based'}<br>
             Screenshots: {len(screenshots)}
         </div>
         
         <div class="sop-content">
-"""
-        
-        # Add the SOP content (formatted) - convert markdown to HTML
-        
-        # Process line by line with proper formatting
-        in_list = False
-        sop_lines = sop_content.split('\n')
-        for line in sop_lines:
-            line_stripped = line.strip()
-            
-            # Skip empty lines
-            if not line_stripped:
-                if in_list:
-                    html_content += '</ul>\n'
-                    in_list = False
-                html_content += '<br>\n'
-                continue
-            
-            # Headers
-            if line_stripped.startswith('#'):
-                if in_list:
-                    html_content += '</ul>\n'
-                    in_list = False
-                level = len(re.match(r'^#+', line_stripped).group())
-                text = line_stripped.lstrip('#').strip()
-                html_content += f'<h{min(level + 1, 3)}>{text}</h{min(level + 1, 3)}>\n'
-                continue
-            
-            # Bold text with **
-            line_formatted = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', line_stripped)
-            
-            # Numbered list items (1., 2., etc.)
-            if re.match(r'^\d+\.\s', line_formatted):
-                if in_list:
-                    html_content += '</ul>\n'
-                    in_list = False
-                html_content += f'<div class="step">{line_formatted}</div>\n'
-            # Bullet points
-            elif line_formatted.startswith('- ') or line_formatted.startswith('* '):
-                if not in_list:
-                    html_content += '<ul style="margin-left: 20px;">\n'
-                    in_list = True
-                html_content += f'<li>{line_formatted[2:]}</li>\n'
-            else:
-                if in_list:
-                    html_content += '</ul>\n'
-                    in_list = False
-                html_content += f'<p>{line_formatted}</p>\n'
-        
-        if in_list:
-            html_content += '</ul>\n'
-        
-        html_content += """        </div>
+{sop_body_content}
+        </div>
         
         <h2>📸 Visual Reference</h2>
         <p>The following screenshots provide visual guidance for this procedure:</p>
@@ -2806,11 +2900,22 @@ Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
             try:
                 with open(screenshot_path, 'rb') as img_file:
                     img_data = base64.b64encode(img_file.read()).decode('utf-8')
+                    
+                    # Get corresponding note if available
+                    note_text = ""
+                    if notes and i <= len(notes):
+                        note_text = notes[i-1].get('note', '').strip()
+                    
                     html_content += f"""
         <div class="screenshot">
+            <h3>Step {i}</h3>
             <img src="data:image/png;base64,{img_data}" alt="Step {i}">
             <div class="screenshot-caption">Screenshot {i} of {len(screenshots)}</div>
-        </div>
+"""
+                    if note_text:
+                        html_content += f"""            <p style="margin-top: 10px; text-align: left; padding: 0 20px;"><strong>Note:</strong> {note_text}</p>
+"""
+                    html_content += """        </div>
 """
             except Exception as img_error:
                 logging.warning(f"Failed to embed screenshot {screenshot_file}: {img_error}")
@@ -2832,14 +2937,20 @@ Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}
         
         logging.info(f"SOP saved to {sop_txt_path} and {sop_html_path}")
         
+        # Create URL for serving the SOP HTML file
+        from urllib.parse import quote
+        sop_url = f'/api/serve_sop/{quote(sop_html_path)}'
+        
         return jsonify({
             'success': True,
-            'sop_content': sop_content,
+            'sop_content': html_content,  # Return complete HTML with screenshots
             'sop_html_path': sop_html_path,
+            'sop_html_url': sop_url,  # Add URL for frontend to fetch
             'sop_txt_path': sop_txt_path,
             'filename': f'SOP_{title.replace(" ", "_")}.html',
             'ai_generated': ai_generated,
-            'generation_method': 'AI' if ai_generated else 'Notes-based'
+            'generation_method': 'AI' if ai_generated else 'Notes-based',
+            'screenshots': len(screenshots)  # Add screenshot count
         })
     except Exception as e:
         logging.error(f"Error generating SOP: {e}", exc_info=True)
@@ -2877,14 +2988,14 @@ if __name__ == '__main__':
     # Determine if running as frozen executable
     is_frozen = getattr(sys, 'frozen', False)
     
-    # Open browser to local IP address (only when frozen as exe)
+    # Open browser to localhost (only when frozen as exe)
     if is_frozen:
         import webbrowser
         import threading
         def open_browser():
             import time
             time.sleep(1.5)  # Wait for server to start
-            url = f"http://{local_ip}:5000"
+            url = "http://localhost:5000"
             logging.info(f"Opening browser to {url}")
             webbrowser.open(url)
         threading.Thread(target=open_browser, daemon=True).start()

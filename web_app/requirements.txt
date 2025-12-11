@@ -1,11 +1,28 @@
-Flask
+# Hallmark Scribble Web Application Requirements
+# Core Web Framework
+Flask==3.0.0
 flask-cors
+
+# Screen/Input Capture
 pynput
 pyautogui
-Pillow
-google-generativeai
+mss>=9.0.0
+
+# Image Processing
+Pillow>=10.0.0
+
+# AI/Transcription
+google-generativeai>=0.3.0
+
+# Text-to-Speech
+edge-tts>=6.1.9
+gTTS>=2.3.0
+
+# System Integration
 python-dotenv
 keyboard
 pywin32
-edge-tts
+pygetwindow>=0.0.9
+
+# Build Tools
 pyinstaller

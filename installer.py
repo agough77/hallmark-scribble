@@ -41,8 +41,7 @@ class InstallerGUI:
             # Running as script
             self.script_dir = Path(__file__).parent
         
-        # Installation options
-        self.install_desktop = tk.BooleanVar(value=True)
+        # Installation options (web-only)
         self.install_web = tk.BooleanVar(value=True)
         
         # Main frame
@@ -54,23 +53,14 @@ class InstallerGUI:
                          font=("Arial", 16, "bold"))
         title.grid(row=0, column=0, columnspan=2, pady=(0, 20))
         
-        # Installation options
-        options_frame = ttk.LabelFrame(main_frame, text="Select Components to Install", padding="10")
-        options_frame.grid(row=1, column=0, columnspan=2, pady=(0, 10), sticky=(tk.W, tk.E))
+        # Info frame
+        info_frame = ttk.LabelFrame(main_frame, text="Installation Info", padding="10")
+        info_frame.grid(row=1, column=0, columnspan=2, pady=(0, 10), sticky=(tk.W, tk.E))
         
-        desktop_check = ttk.Checkbutton(options_frame, text="Desktop Application (PyQt5 GUI)", 
-                                       variable=self.install_desktop)
-        desktop_check.grid(row=0, column=0, sticky=tk.W, pady=5)
-        
-        web_check = ttk.Checkbutton(options_frame, text="Web Application (Browser-based)", 
-                                    variable=self.install_web)
-        web_check.grid(row=1, column=0, sticky=tk.W, pady=5)
-        
-        # Info label
-        info_label = ttk.Label(options_frame, 
-                              text="Tip: Install only what you need to speed up installation", 
-                              font=("Arial", 8), foreground="gray")
-        info_label.grid(row=2, column=0, sticky=tk.W, pady=(5, 0))
+        info_label = ttk.Label(info_frame, 
+                              text="Hallmark Scribble Web Application\nBrowser-based screen recording and guide generation", 
+                              font=("Arial", 10))
+        info_label.grid(row=0, column=0, sticky=tk.W, pady=5)
         
         # Status label
         self.status_label = ttk.Label(main_frame, text="Ready to install", 
@@ -142,35 +132,14 @@ class InstallerGUI:
             self.log(f"Error: {str(e)}")
             return False
             
-    def build_desktop_app(self):
-        """Build desktop application"""
-        if not self.install_desktop.get():
-            self.log("Skipping desktop app (not selected)")
-            return True
-            
-        self.update_status("Verifying Desktop Application...", 20)
-        self.log("\n=== Checking Desktop App ===")
-        
-        desktop_dir = self.script_dir / "desktop_app" / "dist" / "HallmarkScribble_Desktop"
-        if not desktop_dir.exists():
-            self.log("ERROR: Desktop app not found. Please build it first with BUILD_ALL.bat")
-            return False
-        
-        self.log(f"Found desktop app at: {desktop_dir}")
-        return True
-    
-    def build_web_app(self):
-        """Build web application"""
-        if not self.install_web.get():
-            self.log("Skipping web app (not selected)")
-            return True
-            
-        self.update_status("Verifying Web Application...", 40)
+    def verify_web_app(self):
+        """Verify web application exists"""
+        self.update_status("Verifying Web Application...", 20)
         self.log("\n=== Checking Web App ===")
         
-        web_dir = self.script_dir / "web_app" / "dist" / "HallmarkScribble_Web"
+        web_dir = self.script_dir / "web_app" / "HallmarkScribble_Web"
         if not web_dir.exists():
-            self.log("ERROR: Web app not found. Please build it first with BUILD_ALL.bat")
+            self.log("ERROR: Web app not found. Please build it first with BUILD_COMPLETE.bat")
             return False
             
         self.log(f"Found web app at: {web_dir}")
@@ -191,42 +160,21 @@ class InstallerGUI:
             self.log(f"ERROR creating installation directory: {e}")
             return False
         
-        # Copy web app (if selected)
-        if self.install_web.get():
-            web_build = self.script_dir / "web_app" / "dist" / "HallmarkScribble_Web"
-            if web_build.exists():
-                try:
-                    web_dest = install_dir / "Web"
-                    if web_dest.exists():
-                        shutil.rmtree(web_dest)
-                    shutil.copytree(web_build, web_dest)
-                    self.log(f"Copied web app to {web_dest}")
-                except Exception as e:
-                    self.log(f"ERROR copying web app: {e}")
-                    return False
-            else:
-                self.log("WARNING: Web app build not found at web_app\\dist\\HallmarkScribble_Web")
+        # Copy web app
+        web_build = self.script_dir / "web_app" / "HallmarkScribble_Web"
+        if web_build.exists():
+            try:
+                web_dest = install_dir / "Web"
+                if web_dest.exists():
+                    shutil.rmtree(web_dest)
+                shutil.copytree(web_build, web_dest)
+                self.log(f"Copied web app to {web_dest}")
+            except Exception as e:
+                self.log(f"ERROR copying web app: {e}")
                 return False
         else:
-            self.log("Skipped web app installation (not selected)")
-            
-        # Copy desktop app (if selected)
-        if self.install_desktop.get():
-            desktop_build = self.script_dir / "desktop_app" / "dist" / "HallmarkScribble_Desktop"
-            if desktop_build.exists():
-                try:
-                    desktop_dest = install_dir / "Desktop"
-                    if desktop_dest.exists():
-                        shutil.rmtree(desktop_dest)
-                    shutil.copytree(desktop_build, desktop_dest)
-                    self.log(f"Copied desktop app to {desktop_dest}")
-                except Exception as e:
-                    self.log(f"ERROR copying desktop app: {e}")
-                    return False
-            else:
-                self.log("WARNING: Desktop app build not found")
-        else:
-            self.log("Skipped desktop app installation (not selected)")
+            self.log("ERROR: Web app build not found at web_app\\HallmarkScribble_Web")
+            return False
             
         # Copy shared folder
         shared_dir = self.script_dir / "shared"
@@ -331,36 +279,24 @@ class InstallerGUI:
             self.log(f"ERROR creating start menu folder: {e}")
             return False
             
-        # Create shortcuts using PowerShell
+        # Create shortcuts using PowerShell (web-only)
         shortcuts = [
             {
-                'name': 'Hallmark Scribble Web',
+                'name': 'Hallmark Scribble',
                 'target': str(install_dir / "Web" / "HallmarkScribble_Web.exe"),
-                'desktop': desktop / "Hallmark Scribble Web.lnk",
-                'startmenu': start_menu / "Hallmark Scribble Web.lnk"
-            },
-            {
-                'name': 'Hallmark Scribble Desktop',
-                'target': str(install_dir / "Desktop" / "HallmarkScribble_Desktop.exe"),
-                'desktop': desktop / "Hallmark Scribble Desktop.lnk",
-                'startmenu': start_menu / "Hallmark Scribble Desktop.lnk"
+                'desktop': desktop / "Hallmark Scribble.lnk",
+                'startmenu': start_menu / "Hallmark Scribble.lnk"
             },
             {
                 'name': 'Check for Updates',
                 'target': str(install_dir / "HallmarkScribble_Updater.exe"),
-                'desktop': None,  # Don't create desktop shortcut for updater
+                'desktop': None,
                 'startmenu': start_menu / "Check for Updates.lnk"
-            },
-            {
-                'name': 'Restart Services',
-                'target': str(install_dir / "HallmarkScribble_RestartService.exe"),
-                'desktop': None,  # Don't create desktop shortcut for restart tool
-                'startmenu': start_menu / "Restart Services.lnk"
             },
             {
                 'name': 'Uninstall Hallmark Scribble',
                 'target': str(install_dir / "Uninstall.bat"),
-                'desktop': None,  # Don't create desktop shortcut for uninstaller
+                'desktop': None,
                 'startmenu': start_menu / "Uninstall.lnk"
             }
         ]
@@ -411,15 +347,10 @@ pause
 echo.
 echo Stopping any running processes...
 taskkill /F /IM HallmarkScribble_Web.exe 2>nul
-taskkill /F /IM HallmarkScribble_Desktop.exe 2>nul
-taskkill /F /IM HallmarkScribble.exe 2>nul
-taskkill /F /IM main.exe 2>nul
 timeout /t 2 /nobreak >nul
 
 echo.
 echo Removing desktop shortcuts...
-del "{desktop}\\Hallmark Scribble Web.lnk" 2>nul
-del "{desktop}\\Hallmark Scribble Desktop.lnk" 2>nul
 del "{desktop}\\Hallmark Scribble.lnk" 2>nul
 
 echo Removing Start Menu shortcuts...
@@ -463,10 +394,7 @@ pause
         
         # Kill any running processes
         processes_to_kill = [
-            "HallmarkScribble_Web.exe",
-            "HallmarkScribble_Desktop.exe", 
-            "HallmarkScribble.exe",
-            "main.exe"
+            "HallmarkScribble_Web.exe"
         ]
         
         for proc_name in processes_to_kill:
@@ -526,8 +454,6 @@ pause
         # Remove old shortcuts
         desktop = Path.home() / "Desktop"
         old_shortcuts = [
-            desktop / "Hallmark Scribble Web.lnk",
-            desktop / "Hallmark Scribble Desktop.lnk",
             desktop / "Hallmark Scribble.lnk"
         ]
         
@@ -565,12 +491,6 @@ pause
         
     def start_install(self):
         """Main installation process"""
-        # Check if at least one component is selected
-        if not self.install_desktop.get() and not self.install_web.get():
-            messagebox.showwarning("No Selection", 
-                                 "Please select at least one component to install.")
-            return
-        
         # Disable buttons during install
         self.install_btn.config(state='disabled')
         self.close_btn.config(state='disabled')
@@ -581,22 +501,17 @@ pause
                 messagebox.showerror("Error", "Failed to clean old installations")
                 return
             
-            # Step 1: Build desktop app
-            if not self.build_desktop_app():
-                messagebox.showerror("Error", "Desktop app build failed")
+            # Step 1: Verify web app
+            if not self.verify_web_app():
+                messagebox.showerror("Error", "Web app verification failed")
                 return
                 
-            # Step 2: Build web app
-            if not self.build_web_app():
-                messagebox.showerror("Error", "Web app build failed")
-                return
-                
-            # Step 3: Install applications
+            # Step 2: Install applications
             if not self.install_applications():
                 messagebox.showerror("Error", "Installation failed")
                 return
                 
-            # Step 4: Create shortcuts
+            # Step 3: Create shortcuts
             if not self.create_shortcuts():
                 messagebox.showerror("Error", "Shortcut creation failed")
                 return

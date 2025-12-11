@@ -702,13 +702,13 @@ def create_html_editor(scribble_dir):
             encoded_path = quote(screenshot_path, safe='')
             
             html_content += f"""
-                <div class="screenshot-item" draggable="true" data-step="{i}" data-type="screenshot">
+                <div class="screenshot-item" draggable="true" data-step="{i}" data-type="screenshot" data-filename="{screenshot_file}">
                     <div class="drag-handle">⋮⋮ Drag</div>
                     <button class="delete-btn" onclick="deleteStep(this)">🗑️ Delete</button>
                     <div class="screenshot-number">Step {i}</div>
-                    <button class="edit-btn" onclick="openAnnotationEditor('/api/editor/image/{encoded_path}', {i})">✏️ Edit & Annotate</button>
+                    <button class="edit-btn" onclick="openAnnotationEditor('/api/editor/image/{encoded_path}', {i}, '{screenshot_file}')">✏️ Edit & Annotate</button>
                     <button class="edit-btn" onclick="generateStepInstructions('{screenshot_path}', {i})" style="background: #27ae60;">🤖 Generate AI Instructions</button>
-                    <img src="/api/editor/image/{encoded_path}" class="screenshot-img" id="img-{i}" onclick="showImage(this.src)" alt="Screenshot {i}">
+                    <img src="/api/editor/image/{encoded_path}" class="screenshot-img" id="img-{i}" onclick="showImage(this.src)" alt="Screenshot {i}" data-filename="{screenshot_file}">
                     
                     <div class="rich-text-toolbar" data-step="{i}">
                         <button class="format-btn" onclick="formatText('bold', {i})" title="Bold"><b>B</b></button>
@@ -740,6 +740,7 @@ def create_html_editor(scribble_dir):
         <div class="buttons">
             <button class="btn-primary" onclick="saveChanges()">💾 Save Changes</button>
             <button class="btn-success" onclick="exportHTML()">📄 Export HTML Guide</button>
+            <button class="btn-success" onclick="generateSOP()" style="background: #9b59b6;">📋 Generate SOP</button>
         </div>
     </div>
     
@@ -783,7 +784,7 @@ def create_html_editor(scribble_dir):
         let isDrawing = false;
         let currentColor = '#ffff00'; // Yellow for highlighter
         let currentSize = 3;
-        let currentOpacity = 0.35; // Default to 35% for highlighter transparency
+        let currentOpacity = 0.05; // Default to 5% for highlighter transparency (marker effect)
         let canvas, ctx, originalImage, originalImageSrc;
         let currentStepIndex = null;
         let annotations = [];
@@ -800,8 +801,14 @@ def create_html_editor(scribble_dir):
             document.getElementById('imageModal').style.display = 'none';
         }}
         
-        function openAnnotationEditor(imageSrc, stepIndex) {{
+        function openAnnotationEditor(imageSrc, stepIndex, filename) {{
             currentStepIndex = stepIndex;
+            window.currentFilename = filename || null;  // Store filename for saving
+            console.log('=== OPENING EDITOR ===');
+            console.log('Step Index:', stepIndex);
+            console.log('Image Source:', imageSrc);
+            console.log('Filename:', filename);
+            
             const modal = document.getElementById('annotationModal');
             canvas = document.getElementById('annotationCanvas');
             ctx = canvas.getContext('2d');
@@ -973,6 +980,11 @@ def create_html_editor(scribble_dir):
             }} else if (currentTool === 'pen' || currentTool === 'highlighter') {{
                 ctx.beginPath();
                 ctx.moveTo(startX, startY);
+                
+                // For highlighter, store the path points to prevent opacity compounding
+                if (currentTool === 'highlighter') {{
+                    window.highlighterPath = [{{x: startX, y: startY}}];
+                }}
             }}
         }}
         
@@ -992,14 +1004,27 @@ def create_html_editor(scribble_dir):
                 ctx.lineTo(x, y);
                 ctx.stroke();
             }} else if (currentTool === 'highlighter') {{
+                // Store path points
+                if (!window.highlighterPath) {{
+                    window.highlighterPath = [];
+                }}
+                window.highlighterPath.push({{x: x, y: y}});
+                
+                // Redraw the entire path each time to prevent opacity compounding
+                ctx.putImageData(originalImage, 0, 0);
+                redrawAnnotations(true); // Skip other highlighter strokes to prevent compounding
+                
                 ctx.strokeStyle = currentColor;
                 ctx.lineWidth = currentSize * 5;
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
-                // Highlighter uses semi-transparent color to show text underneath
-                // Lower opacity = more transparent, you can see text better
                 ctx.globalAlpha = currentOpacity;
-                ctx.lineTo(x, y);
+                
+                ctx.beginPath();
+                ctx.moveTo(window.highlighterPath[0].x, window.highlighterPath[0].y);
+                for (let i = 1; i < window.highlighterPath.length; i++) {{
+                    ctx.lineTo(window.highlighterPath[i].x, window.highlighterPath[i].y);
+                }}
                 ctx.stroke();
             }} else if (currentTool === 'arrow' || currentTool === 'rectangle' || currentTool === 'circle') {{
                 // Redraw from original + annotations
@@ -1072,8 +1097,30 @@ def create_html_editor(scribble_dir):
                 // Update original image with the new annotation
                 originalImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
             }} else if (currentTool === 'pen' || currentTool === 'highlighter') {{
-                // For continuous drawing, save the current canvas state
-                originalImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                // For pen and highlighter, save the path
+                if (currentTool === 'highlighter' && window.highlighterPath) {{
+                    // Save the complete path to annotations
+                    annotations.push({{
+                        tool: currentTool,
+                        path: window.highlighterPath,
+                        color: currentColor,
+                        size: currentSize,
+                        opacity: currentOpacity
+                    }});
+                    
+                    // Redraw everything including the new highlighter stroke
+                    ctx.putImageData(originalImage, 0, 0);
+                    redrawAnnotations(); // Now redraw ALL annotations including highlighters
+                    
+                    // Clear the temporary path
+                    window.highlighterPath = null;
+                    
+                    // DO NOT update originalImage here - keep it clean!
+                    // Highlighters should only exist in annotations array and be redrawn on demand
+                }} else if (currentTool === 'pen') {{
+                    // For pen tool, save the current canvas state
+                    originalImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                }}
             }}
             
             ctx.globalAlpha = 1;
@@ -1098,8 +1145,13 @@ def create_html_editor(scribble_dir):
             ctx.stroke();
         }}
         
-        function redrawAnnotations() {{
+        function redrawAnnotations(skipHighlighter = false) {{
             annotations.forEach(ann => {{
+                // Skip highlighter strokes if requested (during active drawing)
+                if (skipHighlighter && ann.tool === 'highlighter') {{
+                    return;
+                }}
+                
                 ctx.strokeStyle = ann.color;
                 ctx.lineWidth = ann.size;
                 ctx.globalAlpha = ann.opacity || 1; // Use saved opacity, default to 1 for old annotations
@@ -1122,6 +1174,17 @@ def create_html_editor(scribble_dir):
                     ctx.fillStyle = ann.color;
                     ctx.globalAlpha = ann.opacity || 1; // Also apply to text
                     ctx.fillText(ann.text, ann.x, ann.y);
+                }} else if (ann.tool === 'highlighter' && ann.path) {{
+                    // Redraw highlighter path
+                    ctx.strokeStyle = ann.color;
+                    ctx.lineWidth = ann.size * 5;
+                    ctx.globalAlpha = ann.opacity || 0.05;
+                    ctx.beginPath();
+                    ctx.moveTo(ann.path[0].x, ann.path[0].y);
+                    for (let i = 1; i < ann.path.length; i++) {{
+                        ctx.lineTo(ann.path[i].x, ann.path[i].y);
+                    }}
+                    ctx.stroke();
                 }}
             }});
             ctx.globalAlpha = 1; // Reset to default after redrawing all
@@ -1322,6 +1385,10 @@ def create_html_editor(scribble_dir):
             console.log('=== SAVE STARTED ===');
             console.log('Scribble dir:', '{scribble_dir_normalized}');
             
+            // IMPORTANT: Ensure all annotations are rendered before saving
+            ctx.putImageData(originalImage, 0, 0);
+            redrawAnnotations(); // Redraw all annotations to ensure they're on the canvas
+            
             // Convert canvas to data URL
             const dataURL = canvas.toDataURL('image/png');
             console.log('Data URL length:', dataURL.length);
@@ -1330,28 +1397,36 @@ def create_html_editor(scribble_dir):
             
             // We'll update the image after save completes with a cache-busting URL
             const imgElement = document.getElementById(`img-${{currentStepIndex}}`);
+            console.log('Image element ID:', `img-${{currentStepIndex}}`);
+            console.log('Image element found:', !!imgElement);
             if (!imgElement) {{
                 console.error('Image element not found for step:', currentStepIndex);
+            }} else {{
+                console.log('Current image src:', imgElement.src);
             }}
             
-            // Get filename from the current image being edited
-            let filename = null;
+            // Get filename from the stored global variable (set when editor opened)
+            let filename = window.currentFilename;
             
-            // Try to get from screenshotFiles array first
-            const screenshotFiles = {json.dumps([f for f in screenshots])};
-            console.log('Screenshot files:', screenshotFiles);
+            // Fallback: try to get from img element data attribute
+            if (!filename && imgElement && imgElement.dataset.filename) {{
+                filename = imgElement.dataset.filename;
+                console.log('Using filename from img element data-filename:', filename);
+            }}
             
-            if (currentStepIndex < screenshotFiles.length) {{
-                filename = screenshotFiles[currentStepIndex];
-            }} else {{
-                // For manually uploaded images, get filename from the img element
-                if (imgElement && imgElement.dataset.filename) {{
-                    filename = imgElement.dataset.filename;
-                }} else {{
-                    // Generate a new filename
-                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-                    filename = `screenshot_manual_${{timestamp}}.png`;
-                }}
+            // Last resort: try to extract from image src
+            if (!filename && imgElement && imgElement.src) {{
+                const cleanSrc = imgElement.src.split('?')[0];
+                const urlParts = cleanSrc.split('/');
+                filename = decodeURIComponent(urlParts[urlParts.length - 1]);
+                console.log('Extracted filename from src:', filename);
+            }}
+            
+            // Final fallback: generate new filename
+            if (!filename) {{
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                filename = `screenshot_manual_${{timestamp}}.png`;
+                console.log('Generated new filename:', filename);
             }}
             
             console.log('Saving to filename:', filename);
@@ -1412,8 +1487,19 @@ def create_html_editor(scribble_dir):
                         showToast('✅ Cropped image saved! Original preserved.', 'success', 3000);
                         window.isCroppedImage = false;
                     }} else {{
-                        showToast('✅ Screenshot annotations saved to Step ' + (currentStepIndex || '?') + '!', 'success', 3000);
+                        showToast('✅ Screenshot annotations saved to Step ' + (currentStepIndex + 1) + '!', 'success', 3000);
                     }}
+                    
+                    // Refresh the step container to show changes immediately
+                    const stepContainer = imgElement.closest('.step-container');
+                    if (stepContainer) {{
+                        // Force a repaint by toggling visibility momentarily
+                        stepContainer.style.opacity = '0.5';
+                        setTimeout(() => {{
+                            stepContainer.style.opacity = '1';
+                        }}, 100);
+                    }}
+                    
                     // Close editor after successful save and image reload
                     setTimeout(() => closeAnnotationEditor(), 1000);
                 }} else {{
@@ -1515,10 +1601,21 @@ def create_html_editor(scribble_dir):
             const noteDiv = document.getElementById(`note-${{stepIndex}}`);
             const button = event.target;
             
+            // Find the Edit & Annotate button in the same step container
+            const stepContainer = button.closest('.screenshot-item');
+            const editButton = stepContainer.querySelector('.edit-btn[onclick*="openAnnotationEditor"]');
+            
             // Show loading state
             button.disabled = true;
             button.textContent = '⏳ Generating...';
             button.style.background = '#95a5a6';
+            
+            // Disable Edit & Annotate button during AI generation
+            if (editButton) {{
+                editButton.disabled = true;
+                editButton.style.opacity = '0.5';
+                editButton.style.cursor = 'not-allowed';
+            }}
             
             showToast('🤖 Generating AI instructions...', 'info', 2000);
             
@@ -1542,6 +1639,13 @@ def create_html_editor(scribble_dir):
                     button.textContent = '🤖 Generate AI Instructions';
                     button.style.background = '#27ae60';
                     
+                    // Re-enable Edit & Annotate button
+                    if (editButton) {{
+                        editButton.disabled = false;
+                        editButton.style.opacity = '1';
+                        editButton.style.cursor = 'pointer';
+                    }}
+                    
                     if (data.success) {{
                         noteDiv.innerHTML = data.instructions;
                         saveNoteContent(stepIndex);
@@ -1562,6 +1666,14 @@ def create_html_editor(scribble_dir):
                     button.disabled = false;
                     button.textContent = '🤖 Generate AI Instructions';
                     button.style.background = '#27ae60';
+                    
+                    // Re-enable Edit & Annotate button on error
+                    if (editButton) {{
+                        editButton.disabled = false;
+                        editButton.style.opacity = '1';
+                        editButton.style.cursor = 'pointer';
+                    }}
+                    
                     showToast('❌ Failed to connect to server', 'error', 5000);
                 }});
         }}
@@ -1570,10 +1682,21 @@ def create_html_editor(scribble_dir):
             const noteDiv = document.getElementById(`note-${{stepIndex}}`);
             const button = event.target;
             
+            // Find the Edit & Annotate button in the same step container
+            const stepContainer = button.closest('.screenshot-item');
+            const editButton = stepContainer.querySelector('.edit-btn[onclick*="openAnnotationEditor"]');
+            
             // Show loading state
             button.disabled = true;
             button.textContent = '⏳ Generating...';
             button.style.background = '#95a5a6';
+            
+            // Disable Edit & Annotate button during AI generation
+            if (editButton) {{
+                editButton.disabled = true;
+                editButton.style.opacity = '0.5';
+                editButton.style.cursor = 'not-allowed';
+            }}
             
             showToast('🤖 Generating AI instructions...', 'info', 2000);
             
@@ -1589,6 +1712,13 @@ def create_html_editor(scribble_dir):
                 button.disabled = false;
                 button.textContent = '🤖 Generate AI Instructions';
                 button.style.background = '#27ae60';
+                
+                // Re-enable Edit & Annotate button
+                if (editButton) {{
+                    editButton.disabled = false;
+                    editButton.style.opacity = '1';
+                    editButton.style.cursor = 'pointer';
+                }}
                 
                 if (data.success) {{
                     // Insert the AI-generated text into the note
@@ -1611,6 +1741,14 @@ def create_html_editor(scribble_dir):
                 button.disabled = false;
                 button.textContent = '🤖 Generate AI Instructions';
                 button.style.background = '#27ae60';
+                
+                // Re-enable Edit & Annotate button on error
+                if (editButton) {{
+                    editButton.disabled = false;
+                    editButton.style.opacity = '1';
+                    editButton.style.cursor = 'pointer';
+                }}
+                
                 showToast('❌ Failed to connect to server', 'error', 5000);
             }});
         }}
@@ -1625,11 +1763,25 @@ def create_html_editor(scribble_dir):
                     const img = item.querySelector('img');
                     const stepNum = noteDiv.dataset.step;
                     
+                    // Extract filename from imageSrc if available
+                    let filename = null;
+                    if (img && img.src) {{
+                        // Remove query parameters (?t=timestamp)
+                        const cleanSrc = img.src.split('?')[0];
+                        // Extract just the filename from the URL path
+                        const urlParts = cleanSrc.split('/');
+                        const lastPart = urlParts[urlParts.length - 1];
+                        // Decode URL encoding
+                        filename = decodeURIComponent(lastPart);
+                        console.log('Extracted filename for step', index, ':', filename);
+                    }}
+                    
                     return {{
                         step: stepNum,
                         note: noteDiv.innerHTML,
                         type: item.dataset.type || 'screenshot',  // screenshot, upload, or text
-                        imageSrc: img ? img.src : null
+                        imageSrc: img ? img.src : null,
+                        file: filename  // CRITICAL: Store actual filename for correct loading
                     }};
                 }});
                 
@@ -1748,6 +1900,55 @@ h1 {{ color: #333; }}
                 a.click();
                 
                 showToast('📄 HTML guide exported with embedded images!');
+            }});
+        }}
+        
+        function generateSOP() {{
+            const title = document.getElementById('titleEditor').value || 'Procedure';
+            const screenshots = document.querySelectorAll('.screenshot-item');
+            
+            // Collect guide content
+            let guideContent = '';
+            screenshots.forEach((item, i) => {{
+                const noteDiv = item.querySelector('.screenshot-note');
+                const note = noteDiv.textContent || noteDiv.innerText;  // Get plain text only
+                guideContent += `Step ${{i + 1}}: ${{note}}\n\n`;
+            }});
+            
+            // Show loading message
+            showToast('⏳ Generating formal SOP with AI...', 'info', 2000);
+            
+            // Call backend API
+            fetch('/api/generate_sop', {{
+                method: 'POST',
+                headers: {{'Content-Type': 'application/json'}},
+                body: JSON.stringify({{
+                    title: title,
+                    guide_content: guideContent,
+                    output_dir: '{scribble_dir.replace(chr(92), chr(92)+chr(92))}'
+                }})
+            }})
+            .then(response => response.json())
+            .then(data => {{
+                if (data.success) {{
+                    // Download the complete HTML SOP with embedded screenshots
+                    const blob = new Blob([data.sop_content], {{type: 'text/html'}});
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${{title.replace(/[^a-z0-9]/gi, '_')}}_SOP.html`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    
+                    const method = data.ai_generated ? 'AI' : 'template';
+                    showToast(`✅ SOP with ${{data.screenshots || 0}} screenshots generated using ${{method}}!`, 'success', 4000);
+                }} else {{
+                    showToast('❌ Failed to generate SOP: ' + data.error, 'error', 5000);
+                }}
+            }})
+            .catch(err => {{
+                console.error('SOP generation error:', err);
+                showToast('❌ SOP generation failed: ' + err.message, 'error', 5000);
             }});
         }}
         

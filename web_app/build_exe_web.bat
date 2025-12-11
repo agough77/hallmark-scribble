@@ -50,11 +50,13 @@ python3.11.exe -m PyInstaller ^
     --hidden-import=jinja2 ^
     --hidden-import=markupsafe ^
     --hidden-import=edge_tts ^
+    --hidden-import=gtts ^
     --hidden-import=mss ^
     --collect-all=flask ^
     --collect-all=flask_cors ^
     --collect-all=pynput ^
     --collect-all=edge_tts ^
+    --collect-all=gtts ^
     --noconfirm ^
     web_app.py
 
@@ -68,7 +70,6 @@ if exist "dist\HallmarkScribble_Web" (
     echo SUCCESS! Created HallmarkScribble_Web folder
 ) else (
     echo ERROR: Build folder not found
-    pause
     exit /b 1
 )
 echo.
@@ -89,4 +90,3 @@ echo.
 echo This will start the Flask web server.
 echo Open browser to http://localhost:5000
 echo ========================================
-pause

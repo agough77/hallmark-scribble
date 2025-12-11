@@ -49,8 +49,5 @@ if exist "dist\HallmarkScribble_Updater.exe" (
     echo ========================================
 ) else (
     echo ERROR: Build failed
-    pause
     exit /b 1
 )
-
-pause
