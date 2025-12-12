@@ -250,19 +250,43 @@ def get_windows():
                     if is_minimized:
                         logging.debug(f"Skipping minimized/tiny window: {win.title} ({win.left},{win.top},{win.width}x{win.height})")
                         continue
+                    
+                    # Get window position and size directly from Win32 API for accuracy
+                    # (pygetwindow may cache values that are stale on multi-monitor setups)
+                    try:
+                        hwnd = win._hWnd
+                        rect = win32gui.GetWindowRect(hwnd)
+                        left, top, right, bottom = rect
+                        width = right - left
+                        height = bottom - top
                         
-                    # Get window position and size
-                    window_list.append({
-                        'title': win.title[:100],  # Limit title length
-                        'app_name': win.title.split(' - ')[-1] if ' - ' in win.title else win.title,
-                        'region': {
-                            'left': win.left,
-                            'top': win.top,
-                            'width': win.width,
-                            'height': win.height
-                        },
-                        'is_minimized': False
-                    })
+                        logging.debug(f"Window '{win.title[:50]}' at ({left},{top}) size {width}x{height}")
+                        
+                        window_list.append({
+                            'title': win.title[:100],  # Limit title length
+                            'app_name': win.title.split(' - ')[-1] if ' - ' in win.title else win.title,
+                            'region': {
+                                'left': left,
+                                'top': top,
+                                'width': width,
+                                'height': height
+                            },
+                            'is_minimized': False
+                        })
+                    except Exception as rect_error:
+                        # Fallback to pygetwindow values if Win32 API fails
+                        logging.warning(f"Could not get Win32 rect for {win.title}, using pygetwindow values: {rect_error}")
+                        window_list.append({
+                            'title': win.title[:100],
+                            'app_name': win.title.split(' - ')[-1] if ' - ' in win.title else win.title,
+                            'region': {
+                                'left': win.left,
+                                'top': win.top,
+                                'width': win.width,
+                                'height': win.height
+                            },
+                            'is_minimized': False
+                        })
                 except Exception as e:
                     logging.debug(f"Could not get info for window {win.title}: {e}")
                     continue
@@ -548,20 +572,48 @@ def start_recording():
                             logging.info("Falling back to full screen capture")
                             screenshot = pyautogui.screenshot()
                         else:
-                            screenshot = pyautogui.screenshot(region=(
-                                window_region['left'],
-                                window_region['top'],
-                                window_region['width'],
-                                window_region['height']
-                            ))
-                        logging.info(f"Window capture size: {screenshot.size}")
+                            # Use PIL ImageGrab for window capture (handles multi-monitor better)
+                            try:
+                                from PIL import ImageGrab
+                                # ImageGrab.grab() with bbox parameter works correctly on multi-monitor setups
+                                bbox = (
+                                    window_region['left'],
+                                    window_region['top'],
+                                    window_region['left'] + window_region['width'],
+                                    window_region['top'] + window_region['height']
+                                )
+                                logging.info(f"ImageGrab bbox: {bbox}")
+                                screenshot = ImageGrab.grab(bbox=bbox, all_screens=True)
+                                logging.info(f"Window capture size: {screenshot.size} (ImageGrab)")
+                            except Exception as grab_error:
+                                logging.warning(f"ImageGrab failed: {grab_error}, using pyautogui fallback")
+                                screenshot = pyautogui.screenshot(region=(
+                                    window_region['left'],
+                                    window_region['top'],
+                                    window_region['width'],
+                                    window_region['height']
+                                ))
+                                logging.info(f"Window capture size: {screenshot.size} (pyautogui)")
                     elif capture_mode == 'fullscreen' and window_region:
                         # Capture specific monitor (fullscreen on one monitor)
                         logging.info(f"Capturing specific monitor: {window_region}")
                         logging.info(f"Monitor region coordinates - left:{window_region['left']}, top:{window_region['top']}, width:{window_region['width']}, height:{window_region['height']}")
                         
-                        # Use MSS library for multi-monitor screenshots (handles negative coordinates)
+                        # Use PIL ImageGrab for multi-monitor screenshots (all_screens=True is key)
                         try:
+                            from PIL import ImageGrab
+                            bbox = (
+                                window_region['left'],
+                                window_region['top'],
+                                window_region['left'] + window_region['width'],
+                                window_region['top'] + window_region['height']
+                            )
+                            logging.info(f"ImageGrab bbox for monitor: {bbox}")
+                            screenshot = ImageGrab.grab(bbox=bbox, all_screens=True)
+                            logging.info(f"Monitor capture (ImageGrab) size: {screenshot.size}")
+                        except Exception as grab_error:
+                            logging.warning(f"ImageGrab failed: {grab_error}, falling back to MSS")
+                            # Fallback to MSS
                             import mss
                             with mss.mss() as sct:
                                 monitor = {
@@ -571,19 +623,9 @@ def start_recording():
                                     'height': window_region['height']
                                 }
                                 sct_img = sct.grab(monitor)
-                                # Convert to PIL Image
                                 from PIL import Image
                                 screenshot = Image.frombytes('RGB', sct_img.size, sct_img.rgb)
-                                logging.info(f"Monitor capture (MSS) size: {screenshot.size}")
-                        except ImportError:
-                            logging.warning("MSS not available, using pyautogui (may have issues with negative coordinates)")
-                            screenshot = pyautogui.screenshot(region=(
-                                window_region['left'],
-                                window_region['top'],
-                                window_region['width'],
-                                window_region['height']
-                            ))
-                            logging.info(f"Monitor capture (pyautogui) size: {screenshot.size}")
+                                logging.info(f"Monitor capture (MSS fallback) size: {screenshot.size}")
                     else:
                         # Full screen capture (all monitors)
                         logging.info("Capturing full screen (all monitors)")
@@ -843,8 +885,9 @@ def stop_recording():
                 # Get video duration using ffprobe
                 video_duration = 0
                 if video_path and os.path.exists(video_path):
-                    # Wait a moment for file to be fully written
-                    time.sleep(0.5)
+                    # Wait for FFmpeg to fully write the moov atom
+                    # This is critical for MP4 files - FFmpeg needs time to finalize
+                    time.sleep(2.0)
                     
                     try:
                         import subprocess
@@ -859,28 +902,35 @@ def stop_recording():
                         
                         logging.info(f"Using ffprobe at: {ffprobe_path}")
                         
-                        cmd = [
-                            ffprobe_path,
-                            '-v', 'error',
-                            '-show_entries', 'format=duration',
-                            '-of', 'default=noprint_wrappers=1:nokey=1',
-                            video_path
-                        ]
-                        
-                        result = subprocess.run(
-                            cmd,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            text=True,
-                            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
-                            timeout=5
-                        )
-                        
-                        if result.returncode == 0 and result.stdout.strip():
-                            video_duration = float(result.stdout.strip())
-                            logging.info(f"Video duration: {video_duration:.2f} seconds")
-                        else:
-                            logging.warning(f"ffprobe failed: {result.stderr}")
+                        # Retry up to 3 times with increasing delays
+                        for attempt in range(3):
+                            cmd = [
+                                ffprobe_path,
+                                '-v', 'error',
+                                '-show_entries', 'format=duration',
+                                '-of', 'default=noprint_wrappers=1:nokey=1',
+                                video_path
+                            ]
+                            
+                            result = subprocess.run(
+                                cmd,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                text=True,
+                                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
+                                timeout=5
+                            )
+                            
+                            if result.returncode == 0 and result.stdout.strip():
+                                video_duration = float(result.stdout.strip())
+                                logging.info(f"Video duration: {video_duration:.2f} seconds (attempt {attempt + 1})")
+                                break
+                            else:
+                                if attempt < 2:
+                                    logging.warning(f"ffprobe attempt {attempt + 1} failed, retrying... {result.stderr}")
+                                    time.sleep(1.0)
+                                else:
+                                    logging.warning(f"ffprobe failed after 3 attempts: {result.stderr}")
                     except Exception as e:
                         logging.warning(f"Failed to get video duration: {e}", exc_info=True)
                 
@@ -2891,34 +2941,105 @@ Generate a well-formatted SOP document in HTML format with proper headings (<h1>
         </div>
         
         <h2>📸 Visual Reference</h2>
-        <p>The following screenshots provide visual guidance for this procedure:</p>
+        <p>The following steps provide visual and textual guidance for this procedure:</p>
 """
         
-        # Embed screenshots as base64
-        for i, screenshot_file in enumerate(screenshots, 1):
-            screenshot_path = os.path.join(output_dir, screenshot_file)
-            try:
-                with open(screenshot_path, 'rb') as img_file:
-                    img_data = base64.b64encode(img_file.read()).decode('utf-8')
+        # Process steps from notes.json which includes all step types
+        image_step_count = 0  # Track actual number of steps with images
+        if notes:
+            logging.info(f"SOP: Processing {len(notes)} notes")
+            for i, note_item in enumerate(notes, 1):
+                step_type = note_item.get('type', 'screenshot')
+                note_text = note_item.get('note', '').strip()
+                image_file = note_item.get('file')  # Actual filename
+                logging.info(f"SOP Step {i}: type={step_type}, file={image_file}, has_note={bool(note_text)}")
+                
+                html_content += f"""
+        <div class="screenshot">
+            <h3>Step {i}</h3>
+"""
+                
+                # Handle different step types
+                if step_type == 'text':
+                    # Text-only step (no image)
+                    if note_text:
+                        html_content += f"""            <div style="text-align: left; padding: 20px; background: #fff3cd; border-radius: 4px;">
+                <strong>📝 Note:</strong><br>{note_text}
+            </div>
+"""
+                elif step_type in ['screenshot', 'upload'] and (image_file or note_item.get('imageSrc')):
+                    # Step with image (screenshot or uploaded)
+                    img_data = None
                     
-                    # Get corresponding note if available
-                    note_text = ""
-                    if notes and i <= len(notes):
-                        note_text = notes[i-1].get('note', '').strip()
+                    if step_type == 'screenshot':
+                        # For screenshots, read from file
+                        image_path = os.path.join(output_dir, image_file)
+                        try:
+                            with open(image_path, 'rb') as img_file:
+                                img_data = base64.b64encode(img_file.read()).decode('utf-8')
+                        except Exception as img_error:
+                            logging.warning(f"SOP: Failed to read screenshot file {image_file}: {img_error}")
                     
-                    html_content += f"""
+                    elif step_type == 'upload':
+                        # For uploads, extract base64 from imageSrc data URL
+                        image_src = note_item.get('imageSrc', '')
+                        if image_src.startswith('data:image/'):
+                            try:
+                                # Split on comma to separate header from base64 data
+                                parts = image_src.split(',', 1)
+                                if len(parts) == 2:
+                                    img_data = parts[1]
+                                    logging.info(f"SOP: Extracted base64 data from uploaded image (length: {len(img_data)})")
+                            except Exception as img_error:
+                                logging.warning(f"SOP: Failed to extract uploaded image data: {img_error}")
+                        else:
+                            logging.warning(f"SOP: Invalid imageSrc format for uploaded image (does not start with 'data:image/')")
+                    
+                    # Embed image if we have data
+                    if img_data:
+                        image_step_count += 1  # Count this as an image step
+                        html_content += f"""            <img src="data:image/png;base64,{img_data}" alt="Step {i}">
+            <div class="screenshot-caption">{'Uploaded image' if step_type == 'upload' else 'Screenshot'} {i} of {len(notes)}</div>
+"""
+                        if note_text:
+                            html_content += f"""            <p style="margin-top: 10px; text-align: left; padding: 0 20px;"><strong>Instructions:</strong> {note_text}</p>
+"""
+                    else:
+                        # Show error if image data couldn't be loaded
+                        logging.warning(f"SOP: No image data available for step {i} (type={step_type})")
+                        html_content += f"""            <div style="text-align: left; padding: 20px; background: #ffcccc; border-radius: 4px;">
+                <strong>⚠️ Image not found</strong>
+            </div>
+"""
+                        if note_text:
+                            html_content += f"""            <p style="text-align: left; padding: 0 20px;"><strong>Note:</strong> {note_text}</p>
+"""
+                else:
+                    # Fallback: just show the note
+                    if note_text:
+                        html_content += f"""            <p style="text-align: left; padding: 0 20px;"><strong>Note:</strong> {note_text}</p>
+"""
+                
+                html_content += """        </div>
+"""
+        else:
+            # Fallback to screenshots array if no notes
+            image_step_count = len(screenshots)
+            for i, screenshot_file in enumerate(screenshots, 1):
+                screenshot_path = os.path.join(output_dir, screenshot_file)
+                try:
+                    with open(screenshot_path, 'rb') as img_file:
+                        img_data = base64.b64encode(img_file.read()).decode('utf-8')
+                        
+                        html_content += f"""
         <div class="screenshot">
             <h3>Step {i}</h3>
             <img src="data:image/png;base64,{img_data}" alt="Step {i}">
             <div class="screenshot-caption">Screenshot {i} of {len(screenshots)}</div>
+        </div>
 """
-                    if note_text:
-                        html_content += f"""            <p style="margin-top: 10px; text-align: left; padding: 0 20px;"><strong>Note:</strong> {note_text}</p>
-"""
-                    html_content += """        </div>
-"""
-            except Exception as img_error:
-                logging.warning(f"Failed to embed screenshot {screenshot_file}: {img_error}")
+                except Exception as img_error:
+                    logging.warning(f"Failed to embed screenshot {screenshot_file}: {img_error}")
         
         html_content += """    </div>
 </body>
@@ -2950,7 +3071,7 @@ Generate a well-formatted SOP document in HTML format with proper headings (<h1>
             'filename': f'SOP_{title.replace(" ", "_")}.html',
             'ai_generated': ai_generated,
             'generation_method': 'AI' if ai_generated else 'Notes-based',
-            'screenshots': len(screenshots)  # Add screenshot count
+            'screenshots': image_step_count  # Return actual count of image steps
         })
     except Exception as e:
         logging.error(f"Error generating SOP: {e}", exc_info=True)
@@ -2995,10 +3116,14 @@ if __name__ == '__main__':
         def open_browser():
             import time
             time.sleep(1.5)  # Wait for server to start
-            url = "http://localhost:5000"
+            # Use port 5000 for frozen exe, 5010 for development
+            port = 5000 if is_frozen else 5010
+            url = f"http://localhost:{port}"
             logging.info(f"Opening browser to {url}")
             webbrowser.open(url)
         threading.Thread(target=open_browser, daemon=True).start()
     
     # Run Flask app (disable debug mode when frozen to prevent reloader issues)
-    app.run(host='0.0.0.0', port=5000, debug=not is_frozen)
+    # Port 5000 for frozen exe, 5010 for development
+    port = 5000 if is_frozen else 5010
+    app.run(host='0.0.0.0', port=port, debug=not is_frozen)

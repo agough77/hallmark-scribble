@@ -1,17 +1,16 @@
 {
-  "version": "1.0.10",
-  "release_date": "2025-12-11",
-  "download_url": "https://github.com/agough77/hallmark-scribble/releases/download/v1.0.10/HallmarkScribble_Installer.exe",
+  "version": "1.0.11",
+  "release_date": "2025-12-12",
+  "download_url": "https://github.com/agough77/hallmark-scribble/releases/download/v1.0.11/HallmarkScribble_Installer.exe",
   "changelog": [
-    "FIXED: Highlighter opacity no longer compounds during slow drawing (path-based rendering)",
-    "FIXED: Step reordering - edited screenshots now maintain correct positions after refresh",
-    "FIXED: Annotation save location - edits now save to the correct step consistently",
-    "ADDED: Generate SOP now includes embedded screenshots with notes in HTML output",
-    "ADDED: Video editor button lock - disabled for videos under 5 seconds with warning toast",
-    "IMPROVED: SOP screenshot detection - finds all image files if screenshot_ prefix missing",
-    "IMPROVED: Editor button disabled during AI generation to prevent user confusion",
-    "IMPROVED: Build automation - all scripts run without user prompts",
-    "IMPROVED: Web-only installer - removed desktop app for cleaner deployment"
+    "FIXED: Multi-monitor window capture - black screenshots resolved with ImageGrab (all_screens=True)",
+    "FIXED: Multi-monitor window/fullscreen video - FFmpeg offset_x/offset_y with boundary clipping",
+    "FIXED: H.264 encoding - dimensions automatically adjusted to even numbers for video compatibility",
+    "FIXED: FFmpeg graceful shutdown - proper moov atom writing for valid MP4 files",
+    "FIXED: Video duration detection - retry logic with increased timeouts for ffprobe",
+    "FIXED: SOP generation - uploaded images now properly embedded from imageSrc data URL",
+    "FIXED: SOP screenshot count - toast notification shows accurate count of image steps",
+    "IMPROVED: Development server runs on port 5010, production exe on port 5000"
   ],
   "minimum_version": "1.0.0",
   "critical_update": false
