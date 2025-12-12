@@ -16,6 +16,11 @@ import uuid
 import pyautogui
 import threading
 from flask_cors import CORS
+from PIL import Image
+import win32gui
+import win32ui
+import win32con
+from ctypes import windll
 
 # Determine if running as PyInstaller bundle
 def get_base_path():
@@ -77,6 +82,55 @@ def get_ffprobe_path():
     if ffprobe_in_path:
         return ffprobe_in_path
     return ffprobe  # Return expected path even if not found
+
+def screenshot_win32(bbox):
+    """
+    Take screenshot using pywin32 library.
+    This has proper PyInstaller support unlike ctypes.windll.
+    
+    Args:
+        bbox: Tuple of (left, top, right, bottom)
+    
+    Returns:
+        PIL Image object
+    """
+    try:
+        left, top, right, bottom = bbox
+        width = right - left
+        height = bottom - top
+        
+        # Get device contexts using pywin32
+        hwnd = win32gui.GetDesktopWindow()
+        hwndDC = win32gui.GetWindowDC(hwnd)
+        mfcDC = win32ui.CreateDCFromHandle(hwndDC)
+        saveDC = mfcDC.CreateCompatibleDC()
+        
+        # Create bitmap
+        saveBitMap = win32ui.CreateBitmap()
+        saveBitMap.CreateCompatibleBitmap(mfcDC, width, height)
+        saveDC.SelectObject(saveBitMap)
+        
+        # Copy screen to bitmap using BitBlt
+        saveDC.BitBlt((0, 0), (width, height), mfcDC, (left, top), win32con.SRCCOPY)
+        
+        # Get bitmap data
+        bmpinfo = saveBitMap.GetInfo()
+        bmpstr = saveBitMap.GetBitmapBits(True)
+        
+        # Cleanup
+        win32gui.DeleteObject(saveBitMap.GetHandle())
+        saveDC.DeleteDC()
+        mfcDC.DeleteDC()
+        win32gui.ReleaseDC(hwnd, hwndDC)
+        
+        # Convert to PIL Image
+        img = Image.frombuffer('RGB', (width, height), bmpstr, 'raw', 'BGRX', 0, 1)
+        return img
+        
+    except Exception as e:
+        logging.error(f"Win32 screenshot failed: {e}")
+        logging.exception("Win32 screenshot error details:")
+        raise
 
 # Add parent directory to path for shared modules
 shared_path = get_shared_path()
@@ -536,17 +590,9 @@ def start_recording():
                         except Exception as focus_error:
                             logging.warning(f"Window focus attempt failed: {focus_error}. Window may not be in foreground.")
                         
-                        # Update the window region to the actual current position after restoring
-                        try:
-                            # Refresh window info to get actual current position
-                            rect = win32gui.GetWindowRect(hwnd)
-                            window_region['left'] = rect[0]
-                            window_region['top'] = rect[1]
-                            window_region['width'] = rect[2] - rect[0]
-                            window_region['height'] = rect[3] - rect[1]
-                            logging.info(f"Updated window region to current position: {window_region}")
-                        except Exception as e:
-                            logging.warning(f"Could not update window region: {e}")
+                        # Keep the original window_region - capture exactly what user selected
+                        # Don't update it even if window was resized/moved
+                        logging.info(f"Using original window region: {window_region}")
                     else:
                         logging.warning(f"Could not find window matching region: {window_region}")
                         
@@ -572,25 +618,21 @@ def start_recording():
                             logging.info("Falling back to full screen capture")
                             screenshot = pyautogui.screenshot()
                         else:
-                            # Use MSS for window capture (works reliably on multi-monitor setups including negative coords)
+                            # Use Windows GDI32 API for reliable screenshots in frozen exe
                             try:
-                                import mss
-                                from PIL import Image
-                                logging.info(f"Using MSS for window capture")
-                                with mss.mss() as sct:
-                                    monitor = {
-                                        'left': window_region['left'],
-                                        'top': window_region['top'],
-                                        'width': window_region['width'],
-                                        'height': window_region['height']
-                                    }
-                                    logging.info(f"MSS capturing window: {monitor}")
-                                    sct_img = sct.grab(monitor)
-                                    screenshot = Image.frombytes('RGB', sct_img.size, sct_img.rgb)
-                                    logging.info(f"Window capture size: {screenshot.size} (MSS)")
-                            except Exception as mss_error:
-                                logging.warning(f"MSS failed: {mss_error}, using pyautogui fallback")
-                                logging.exception("MSS error details:")
+                                bbox = (
+                                    window_region['left'],
+                                    window_region['top'],
+                                    window_region['left'] + window_region['width'],
+                                    window_region['top'] + window_region['height']
+                                )
+                                logging.info(f"Using Win32 GDI32 API for window capture (frozen exe compatible)")
+                                logging.info(f"Win32 bbox: {bbox}")
+                                screenshot = screenshot_win32(bbox)
+                                logging.info(f"Window capture size: {screenshot.size} (Win32 GDI32)")
+                            except Exception as win32_error:
+                                logging.warning(f"Win32 GDI32 failed: {win32_error}, using pyautogui fallback")
+                                logging.exception("Win32 error details:")
                                 # Fallback to pyautogui
                                 screenshot = pyautogui.screenshot(region=(
                                     window_region['left'],
@@ -604,36 +646,24 @@ def start_recording():
                         logging.info(f"Capturing specific monitor: {window_region}")
                         logging.info(f"Monitor region coordinates - left:{window_region['left']}, top:{window_region['top']}, width:{window_region['width']}, height:{window_region['height']}")
                         
-                        # Use MSS for multi-monitor screenshots (more reliable than ImageGrab)
+                        # Use Windows GDI32 API for reliable screenshots in frozen exe
                         try:
-                            import mss
-                            from PIL import Image
-                            logging.info(f"Using MSS for monitor capture (frozen exe compatible)")
-                            with mss.mss() as sct:
-                                monitor = {
-                                    'left': window_region['left'],
-                                    'top': window_region['top'],
-                                    'width': window_region['width'],
-                                    'height': window_region['height']
-                                }
-                                logging.info(f"MSS capturing monitor: {monitor}")
-                                sct_img = sct.grab(monitor)
-                                screenshot = Image.frombytes('RGB', sct_img.size, sct_img.rgb)
-                                logging.info(f"Monitor capture size: {screenshot.size} (MSS)")
-                        except Exception as mss_error:
-                            logging.warning(f"MSS failed: {mss_error}, falling back to ImageGrab")
-                            logging.exception("MSS error details:")
-                            # Fallback to ImageGrab
-                            from PIL import ImageGrab
                             bbox = (
                                 window_region['left'],
                                 window_region['top'],
                                 window_region['left'] + window_region['width'],
                                 window_region['top'] + window_region['height']
                             )
-                            logging.info(f"ImageGrab bbox for monitor: {bbox}")
-                            screenshot = ImageGrab.grab(bbox=bbox, all_screens=True)
-                            logging.info(f"Monitor capture (ImageGrab fallback) size: {screenshot.size}")
+                            logging.info(f"Using Win32 GDI32 API for monitor capture (frozen exe compatible)")
+                            logging.info(f"Win32 bbox for monitor: {bbox}")
+                            screenshot = screenshot_win32(bbox)
+                            logging.info(f"Monitor capture size: {screenshot.size} (Win32 GDI32)")
+                        except Exception as win32_error:
+                            logging.warning(f"Win32 GDI32 failed: {win32_error}, falling back to pyautogui")
+                            logging.exception("Win32 error details:")
+                            # Fallback to pyautogui
+                            screenshot = pyautogui.screenshot()
+                            logging.info(f"Monitor capture (pyautogui fallback) size: {screenshot.size}")
                     else:
                         # Full screen capture (all monitors)
                         logging.info("Capturing full screen (all monitors)")

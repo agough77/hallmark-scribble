@@ -14,8 +14,21 @@ import urllib.request
 import hashlib
 from datetime import datetime
 
-# Version info
-CURRENT_VERSION = "1.0.2"
+# Version info - read from installed version.json
+def get_current_version():
+    """Get current version from installed version.json or fallback to hardcoded"""
+    install_dir = Path("C:/Program Files/HallmarkScribble")
+    version_file = install_dir / "version.json"
+    if version_file.exists():
+        try:
+            with open(version_file, 'r') as f:
+                data = json.load(f)
+                return data.get('version', '1.0.2')
+        except:
+            pass
+    return "1.0.2"  # Fallback version
+
+CURRENT_VERSION = get_current_version()
 LOCAL_DEV_PATH = Path(r"C:\Users\AGough\Hallmark University\IT Services - Documents\Scripts + Tools\Hallmark Scribble")
 # GitHub repository for public version.json access (no authentication required)
 GITHUB_VERSION_URL = "https://raw.githubusercontent.com/agough77/hallmark-scribble/main/version.json"

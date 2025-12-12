@@ -288,10 +288,10 @@ class InstallerGUI:
                 'startmenu': start_menu / "Hallmark Scribble.lnk"
             },
             {
-                'name': 'Check for Updates',
+                'name': 'Hallmark Scribble Updater',
                 'target': str(install_dir / "HallmarkScribble_Updater.exe"),
                 'desktop': None,
-                'startmenu': start_menu / "Check for Updates.lnk"
+                'startmenu': start_menu / "Hallmark Scribble Updater.lnk"
             },
             {
                 'name': 'Uninstall Hallmark Scribble',
