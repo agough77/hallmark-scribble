@@ -572,21 +572,25 @@ def start_recording():
                             logging.info("Falling back to full screen capture")
                             screenshot = pyautogui.screenshot()
                         else:
-                            # Use PIL ImageGrab for window capture (handles multi-monitor better)
+                            # Use MSS for window capture (more reliable on multi-monitor setups)
                             try:
-                                from PIL import ImageGrab
-                                # ImageGrab.grab() with bbox parameter works correctly on multi-monitor setups
-                                bbox = (
-                                    window_region['left'],
-                                    window_region['top'],
-                                    window_region['left'] + window_region['width'],
-                                    window_region['top'] + window_region['height']
-                                )
-                                logging.info(f"ImageGrab bbox: {bbox}")
-                                screenshot = ImageGrab.grab(bbox=bbox, all_screens=True)
-                                logging.info(f"Window capture size: {screenshot.size} (ImageGrab)")
-                            except Exception as grab_error:
-                                logging.warning(f"ImageGrab failed: {grab_error}, using pyautogui fallback")
+                                import mss
+                                from PIL import Image
+                                logging.info(f"Using MSS for window capture (frozen exe compatible)")
+                                with mss.mss() as sct:
+                                    monitor = {
+                                        'left': window_region['left'],
+                                        'top': window_region['top'],
+                                        'width': window_region['width'],
+                                        'height': window_region['height']
+                                    }
+                                    logging.info(f"MSS capturing window region: {monitor}")
+                                    sct_img = sct.grab(monitor)
+                                    screenshot = Image.frombytes('RGB', sct_img.size, sct_img.rgb)
+                                    logging.info(f"Window capture size: {screenshot.size} (MSS)")
+                            except Exception as mss_error:
+                                logging.warning(f"MSS failed: {mss_error}, using pyautogui fallback")
+                                logging.exception("MSS error details:")
                                 screenshot = pyautogui.screenshot(region=(
                                     window_region['left'],
                                     window_region['top'],
@@ -599,8 +603,26 @@ def start_recording():
                         logging.info(f"Capturing specific monitor: {window_region}")
                         logging.info(f"Monitor region coordinates - left:{window_region['left']}, top:{window_region['top']}, width:{window_region['width']}, height:{window_region['height']}")
                         
-                        # Use PIL ImageGrab for multi-monitor screenshots (all_screens=True is key)
+                        # Use MSS for multi-monitor screenshots (more reliable than ImageGrab)
                         try:
+                            import mss
+                            from PIL import Image
+                            logging.info(f"Using MSS for monitor capture (frozen exe compatible)")
+                            with mss.mss() as sct:
+                                monitor = {
+                                    'left': window_region['left'],
+                                    'top': window_region['top'],
+                                    'width': window_region['width'],
+                                    'height': window_region['height']
+                                }
+                                logging.info(f"MSS capturing monitor: {monitor}")
+                                sct_img = sct.grab(monitor)
+                                screenshot = Image.frombytes('RGB', sct_img.size, sct_img.rgb)
+                                logging.info(f"Monitor capture size: {screenshot.size} (MSS)")
+                        except Exception as mss_error:
+                            logging.warning(f"MSS failed: {mss_error}, falling back to ImageGrab")
+                            logging.exception("MSS error details:")
+                            # Fallback to ImageGrab
                             from PIL import ImageGrab
                             bbox = (
                                 window_region['left'],
@@ -610,22 +632,7 @@ def start_recording():
                             )
                             logging.info(f"ImageGrab bbox for monitor: {bbox}")
                             screenshot = ImageGrab.grab(bbox=bbox, all_screens=True)
-                            logging.info(f"Monitor capture (ImageGrab) size: {screenshot.size}")
-                        except Exception as grab_error:
-                            logging.warning(f"ImageGrab failed: {grab_error}, falling back to MSS")
-                            # Fallback to MSS
-                            import mss
-                            with mss.mss() as sct:
-                                monitor = {
-                                    'left': window_region['left'],
-                                    'top': window_region['top'],
-                                    'width': window_region['width'],
-                                    'height': window_region['height']
-                                }
-                                sct_img = sct.grab(monitor)
-                                from PIL import Image
-                                screenshot = Image.frombytes('RGB', sct_img.size, sct_img.rgb)
-                                logging.info(f"Monitor capture (MSS fallback) size: {screenshot.size}")
+                            logging.info(f"Monitor capture (ImageGrab fallback) size: {screenshot.size}")
                     else:
                         # Full screen capture (all monitors)
                         logging.info("Capturing full screen (all monitors)")

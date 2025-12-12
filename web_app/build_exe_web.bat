@@ -52,11 +52,13 @@ python3.11.exe -m PyInstaller ^
     --hidden-import=edge_tts ^
     --hidden-import=gtts ^
     --hidden-import=mss ^
+    --hidden-import=mss.windows ^
     --collect-all=flask ^
     --collect-all=flask_cors ^
     --collect-all=pynput ^
     --collect-all=edge_tts ^
     --collect-all=gtts ^
+    --collect-all=mss ^
     --noconfirm ^
     web_app.py
 

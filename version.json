@@ -1,16 +1,11 @@
 {
-  "version": "1.0.11",
+  "version": "1.0.12",
   "release_date": "2025-12-12",
-  "download_url": "https://github.com/agough77/hallmark-scribble/releases/download/v1.0.11/HallmarkScribble_Installer.exe",
+  "download_url": "https://github.com/agough77/hallmark-scribble/releases/download/v1.0.12/HallmarkScribble_Installer.exe",
   "changelog": [
-    "FIXED: Multi-monitor window capture - black screenshots resolved with ImageGrab (all_screens=True)",
-    "FIXED: Multi-monitor window/fullscreen video - FFmpeg offset_x/offset_y with boundary clipping",
-    "FIXED: H.264 encoding - dimensions automatically adjusted to even numbers for video compatibility",
-    "FIXED: FFmpeg graceful shutdown - proper moov atom writing for valid MP4 files",
-    "FIXED: Video duration detection - retry logic with increased timeouts for ffprobe",
-    "FIXED: SOP generation - uploaded images now properly embedded from imageSrc data URL",
-    "FIXED: SOP screenshot count - toast notification shows accurate count of image steps",
-    "IMPROVED: Development server runs on port 5010, production exe on port 5000"
+    "FIXED: Multi-monitor screenshot capture in frozen exe - switched to MSS library for reliability",
+    "FIXED: Window capture on secondary monitors - MSS handles virtual screen coordinates correctly",
+    "IMPROVED: Screenshot capture prioritizes MSS over ImageGrab for better multi-monitor support"
   ],
   "minimum_version": "1.0.0",
   "critical_update": false
