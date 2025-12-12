@@ -572,11 +572,11 @@ def start_recording():
                             logging.info("Falling back to full screen capture")
                             screenshot = pyautogui.screenshot()
                         else:
-                            # Use MSS for window capture (more reliable on multi-monitor setups)
+                            # Use MSS for window capture (works reliably on multi-monitor setups including negative coords)
                             try:
                                 import mss
                                 from PIL import Image
-                                logging.info(f"Using MSS for window capture (frozen exe compatible)")
+                                logging.info(f"Using MSS for window capture")
                                 with mss.mss() as sct:
                                     monitor = {
                                         'left': window_region['left'],
@@ -584,20 +584,21 @@ def start_recording():
                                         'width': window_region['width'],
                                         'height': window_region['height']
                                     }
-                                    logging.info(f"MSS capturing window region: {monitor}")
+                                    logging.info(f"MSS capturing window: {monitor}")
                                     sct_img = sct.grab(monitor)
                                     screenshot = Image.frombytes('RGB', sct_img.size, sct_img.rgb)
                                     logging.info(f"Window capture size: {screenshot.size} (MSS)")
                             except Exception as mss_error:
                                 logging.warning(f"MSS failed: {mss_error}, using pyautogui fallback")
                                 logging.exception("MSS error details:")
+                                # Fallback to pyautogui
                                 screenshot = pyautogui.screenshot(region=(
                                     window_region['left'],
                                     window_region['top'],
                                     window_region['width'],
                                     window_region['height']
                                 ))
-                                logging.info(f"Window capture size: {screenshot.size} (pyautogui)")
+                                logging.info(f"Window capture size: {screenshot.size} (pyautogui fallback)")
                     elif capture_mode == 'fullscreen' and window_region:
                         # Capture specific monitor (fullscreen on one monitor)
                         logging.info(f"Capturing specific monitor: {window_region}")
@@ -1086,10 +1087,23 @@ def generate_guide():
                 logging.warning(f"Failed to load model {model_name}: {model_error}. Falling back to gemini-2.0-flash-exp")
                 model = genai.GenerativeModel('gemini-2.0-flash-exp')
             
-            # Load images
+            # Load images (with context manager to ensure they're closed)
             images = []
-            for screenshot_path in screenshots:
-                images.append(Image.open(screenshot_path))
+            try:
+                for screenshot_path in screenshots:
+                    img = Image.open(screenshot_path)
+                    # Copy image to memory to release file handle
+                    img_copy = img.copy()
+                    img.close()
+                    images.append(img_copy)
+            except Exception as img_error:
+                # Clean up any opened images
+                for img in images:
+                    try:
+                        img.close()
+                    except:
+                        pass
+                raise img_error
             
             prompt = f"""You are analyzing {len(screenshots)} screenshots to create a professional step-by-step how-to guide.
 
@@ -1440,8 +1454,10 @@ def generate_step_instructions():
                 logging.warning(f"Failed to load model {model_name}: {model_error}. Falling back to gemini-2.0-flash-exp")
                 model = genai.GenerativeModel('gemini-2.0-flash-exp')
             
-            # Load image
-            image = Image.open(image_path)
+            # Load image (copy to memory and close file handle to prevent locks)
+            img_file = Image.open(image_path)
+            image = img_file.copy()
+            img_file.close()
             
             prompt = """Analyze this screenshot and provide clear, concise step-by-step instructions for what the user should do.
 
@@ -1933,6 +1949,9 @@ def delete_recordings():
         paths = data.get('paths', [])
         
         import shutil
+        import time
+        import gc
+        
         deleted = 0
         parent_dirs_to_check = set()
         
@@ -1942,9 +1961,26 @@ def delete_recordings():
                 parent_dir = os.path.dirname(path)
                 parent_dirs_to_check.add(parent_dir)
                 
-                shutil.rmtree(path)
-                deleted += 1
-                logging.info(f"Deleted recording: {path}")
+                # Force garbage collection to release any file handles
+                gc.collect()
+                
+                # Retry deletion with delay to handle file locks
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        shutil.rmtree(path)
+                        deleted += 1
+                        logging.info(f"Deleted recording: {path}")
+                        break
+                    except PermissionError as perm_error:
+                        if attempt < max_retries - 1:
+                            # Wait before retry
+                            time.sleep(0.5)
+                            gc.collect()  # Try garbage collection again
+                            logging.warning(f"Retry {attempt + 1}/{max_retries} deleting {path}")
+                        else:
+                            # Final attempt failed
+                            raise perm_error
         
         # Clean up empty parent directories (date folders)
         for parent_dir in parent_dirs_to_check:
